@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { addCheckIn, addSession, deleteGoal, deleteSession, saveGoal } from '../../data/repositories/training'
+import { addCheckIn, addSession, deleteGoal, deleteSession, replaceGoal, saveGoal } from '../../data/repositories/training'
 import type { WeekProgram } from '../../domain/program'
 import { CheckInSheet } from '../components/CheckInSheet'
 import { GoalEditor } from '../components/GoalEditor'
@@ -35,11 +35,12 @@ function suggestionFrom(program: WeekProgram | undefined) {
 }
 
 export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
-  const [sheet, setSheet] = useState<'checkIn' | 'goal'>()
+  const [sheet, setSheet] = useState<'checkIn' | 'goal' | 'next'>()
   const { exercisesById } = state.catalog
   const exercise = exercisesById[exerciseId]
   const view = state.windows.find((w) => w.window.id === windowId)
   const goalView = view?.goals.find((g) => g.goal.exerciseId === exerciseId)
+  const completed = (view?.completedGoals ?? []).filter((g) => g.goal.exerciseId === exerciseId)
   const sessions = (view?.sessions ?? []).filter((s) => s.setLogs.some((l) => l.exerciseId === exerciseId))
   const loggable = [exerciseId, exercise?.weightedVariantId, ...(exercise?.accessories ?? [])].filter(
     (id): id is string => id !== undefined,
@@ -89,6 +90,21 @@ export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
         </section>
       )}
 
+      {goalView?.suggestion && (
+        <section className="card" aria-label="Next goal">
+          <h3>🏆 Goal reached!</h3>
+          <p>
+            You hit <strong>{formatMetric(goalView.goal.metric, goalView.currentValue)}</strong>. Next up:{' '}
+            <strong>{formatMetric(goalView.goal.metric, goalView.suggestion.target)}</strong>, about{' '}
+            {goalView.suggestion.horizonWeeks} weeks ahead at a natural pace.
+          </p>
+          <button className="primary" onClick={() => setSheet('next')}>
+            🚀 Take on the next goal
+          </button>
+          <p className="small muted">You can change the number before starting. The reached goal stays in your history.</p>
+        </section>
+      )}
+
       {goalView && <ProgramCard program={goalView.program} metric={goalView.goal.metric} names={exercisesById} />}
 
       <section className="card" aria-label="Log a session">
@@ -108,6 +124,23 @@ export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
 
       {goalView && <MilestoneTimeline view={goalView} today={today} />}
       {goalView && <ProgressCharts goal={goalView.goal} history={goalView.history} sessions={sessions} />}
+
+      {completed.length > 0 && (
+        <section className="card" aria-label="Completed goals">
+          <h3>✅ Completed goals</h3>
+          <ul className="sessions">
+            {completed.map((g) => (
+              <li key={g.goal.id} className="small">
+                <strong>{g.goal.title}</strong>{' '}
+                <span className="muted">
+                  {formatMetric(g.goal.metric, g.goal.baseline)} → {formatMetric(g.goal.metric, g.goal.target)}
+                  {g.goal.completedOn ? `, done ${formatDate(g.goal.completedOn)}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {sessions.length > 0 && (
         <section className="card" aria-label="Recent sessions">
@@ -159,11 +192,30 @@ export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
           onClose={() => setSheet(undefined)}
         />
       )}
+      {sheet === 'next' && exercise && goalView?.suggestion && (
+        <GoalEditor
+          windowId={windowId}
+          exercise={exercise}
+          today={today}
+          bodyMassKg={state.profile.bodyMassKg}
+          title="Your next goal"
+          initial={{
+            metric: goalView.goal.metric,
+            baseline: goalView.currentValue,
+            target: goalView.suggestion.target,
+            startLoadKg: goalView.goal.startLoadKg,
+            minReps: goalView.goal.minReps,
+          }}
+          onSave={(next) => replaceGoal(goalView.goal, next, today)}
+          onClose={() => setSheet(undefined)}
+        />
+      )}
       {sheet === 'goal' && exercise && (
         <GoalEditor
           windowId={windowId}
           exercise={exercise}
           today={today}
+          bodyMassKg={state.profile.bodyMassKg}
           onSave={saveGoal}
           onClose={() => setSheet(undefined)}
         />

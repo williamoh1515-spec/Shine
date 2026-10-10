@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { progressionConfig } from '../../config/progression.config'
-import { createGoal, metricsFor, projectionFor, suggestTarget } from '../../domain/goals'
+import { createGoal, metricsFor } from '../../domain/goals'
+import { suggestGoalTarget, type GoalSuggestion } from '../../domain/naturalPace'
 import type { Exercise, Goal, GoalMetric } from '../../domain/models'
 import { newId } from '../../data/db'
 import { formatDate, formatMetric, metricInputUnit, metricOptionText } from '../format'
@@ -10,23 +11,38 @@ interface Props {
   windowId: string
   exercise: Exercise
   today: string
+  bodyMassKg?: number
+  /** Prefill, e.g. "your next goal" after reaching one. Values in the goal's stored units. */
+  initial?: { metric: GoalMetric; baseline: number; target: number; startLoadKg?: number; minReps?: number }
+  title?: string
   onSave: (goal: Goal) => Promise<void>
   onClose: () => void
+}
+
+const levelText = { novice: 'newer', intermediate: 'intermediate', advanced: 'advanced' } as const
+
+function paceNote(s: GoalSuggestion): string {
+  if (s.level === undefined || s.expectedGain === undefined) {
+    return `A target about ${s.horizonWeeks} weeks ahead.`
+  }
+  return `Natural pace for a ${levelText[s.level]} lifter: about +${Math.round(s.expectedGain * 10) / 10} kg in ${s.horizonWeeks} weeks. The goal is set at that pace, so it's a push but reachable.`
 }
 
 const num = (s: string) => Number(s.replace(',', '.'))
 const valid = (s: string) => s.trim() !== '' && Number.isFinite(num(s))
 
-export function GoalEditor({ windowId, exercise, today, onSave, onClose }: Props) {
+export function GoalEditor({ windowId, exercise, today, bodyMassKg, initial, title, onSave, onClose }: Props) {
   const metrics = metricsFor(exercise)
-  const [metric, setMetric] = useState<GoalMetric>(metrics[0] ?? 'maxReps')
+  const [metric, setMetric] = useState<GoalMetric>(initial?.metric ?? metrics[0] ?? 'maxReps')
   const unit = metricInputUnit(metric, exercise.progressionModel)
   const usesLoad = exercise.loadType !== undefined && exercise.loadType !== 'bodyweight'
+  const shown = (stored: number | undefined) => (stored === undefined ? '' : String(Math.round((stored / unit.factor) * 100) / 100))
 
-  const [baseline, setBaseline] = useState('')
-  const [target, setTarget] = useState('')
-  const [minReps, setMinReps] = useState(String(exercise.overrides?.repRange?.[0] ?? 5))
-  const [startLoad, setStartLoad] = useState('')
+  const [baseline, setBaseline] = useState(shown(initial?.baseline))
+  const [target, setTarget] = useState(shown(initial?.target))
+  const [note, setNote] = useState('')
+  const [minReps, setMinReps] = useState(String(initial?.minReps ?? exercise.overrides?.repRange?.[0] ?? 5))
+  const [startLoad, setStartLoad] = useState(initial?.startLoadKg !== undefined ? String(initial.startLoadKg) : '')
   const [sessionsPerWeek, setSessionsPerWeek] = useState('2')
   const [fromTest, setFromTest] = useState(true)
 
@@ -54,12 +70,13 @@ export function GoalEditor({ windowId, exercise, today, onSave, onClose }: Props
 
   const suggest = () => {
     if (!valid(baseline)) return
-    const { roundTo } = projectionFor(metric, exercise, progressionConfig)
-    setTarget(String(suggestTarget(metric, num(baseline) * unit.factor, roundTo) / unit.factor))
+    const s = suggestGoalTarget(metric, num(baseline) * unit.factor, exercise, bodyMassKg, progressionConfig)
+    setTarget(String(Math.round((s.target / unit.factor) * 100) / 100))
+    setNote(paceNote(s))
   }
 
   return (
-    <Sheet title={`Goal: ${exercise.name}`} onClose={onClose}>
+    <Sheet title={title ?? `Goal: ${exercise.name}`} onClose={onClose}>
       {metrics.length > 1 && (
         <label>
           What to improve
@@ -98,6 +115,7 @@ export function GoalEditor({ windowId, exercise, today, onSave, onClose }: Props
           )}
         </div>
       )}
+      {note && <p className="notice small">{note}</p>}
       <div className="row wrap">
         <button onClick={suggest} disabled={!valid(baseline)}>
           💡 Suggest a goal

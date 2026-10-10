@@ -15,6 +15,7 @@ import {
 import { currentGoalValue, goalHistory, goalProgress, type ValuePoint } from '../../domain/metrics'
 import { milestoneStatuses, type MilestoneStatus } from '../../domain/milestones'
 import type { CheckIn, Goal, IsoDate, Profile, Session, TrainingWindow, UnlockedAchievement, WindowId } from '../../domain/models'
+import { suggestNextGoal, type GoalSuggestion } from '../../domain/naturalPace'
 import { buildWeekProgram, type WeekProgram } from '../../domain/program'
 
 /** Planned sessions/week for a window with no goals yet. Assumption for the prototype. */
@@ -27,11 +28,16 @@ export interface GoalView {
   history: ValuePoint[]
   milestones: MilestoneStatus[]
   program: WeekProgram
+  /** Present once the goal is reached: the next, higher goal to take on. */
+  suggestion?: GoalSuggestion
 }
 
 export interface WindowView {
   window: TrainingWindow
+  /** Open goals. */
   goals: GoalView[]
+  /** Reached goals that were replaced by a new one; kept as history. */
+  completedGoals: GoalView[]
   sessions: Session[]
   level: LevelInfo
   xp: number
@@ -69,6 +75,7 @@ export function deriveAppState(
       .map((goal) => {
         const history = goalHistory(goal, windowSessions)
         const currentValue = currentGoalValue(goal, windowSessions)
+        const exercise = exercisesById[goal.exerciseId]
         return {
           goal,
           currentValue,
@@ -78,6 +85,10 @@ export function deriveAppState(
           program: buildWeekProgram({
             goal, exercises: exercisesById, windowSessions, checkIns, today, config: progressionConfig, profile,
           }),
+          suggestion:
+            exercise === undefined
+              ? undefined
+              : suggestNextGoal(goal, currentValue, exercise, profile.bodyMassKg, progressionConfig),
         }
       })
   }
@@ -87,16 +98,20 @@ export function deriveAppState(
 
   const plannedPerWeek: Record<WindowId, number> = {}
   for (const w of visible) {
-    const own = goals.filter((g) => g.windowId === w.id).map((g) => g.sessionsPerWeek)
+    const own = goals
+      .filter((g) => g.windowId === w.id && g.completedOn === undefined)
+      .map((g) => g.sessionsPerWeek)
     plannedPerWeek[w.id] = own.length > 0 ? Math.max(...own) : DEFAULT_PLANNED_PER_WEEK
   }
 
   const xp = computeXp(sessions, checkIns, plannedPerWeek, gamificationConfig)
   const windowViews: WindowView[] = visible.map((w) => {
     const windowXp = xp.byWindow[w.id] ?? 0
+    const all = goalViewsFor(w.id)
     return {
       window: w,
-      goals: goalViewsFor(w.id),
+      goals: all.filter((g) => g.goal.completedOn === undefined),
+      completedGoals: all.filter((g) => g.goal.completedOn !== undefined),
       sessions: sessions.filter((s) => s.windowId === w.id),
       xp: windowXp,
       level: levelFromXp(windowXp, gamificationConfig),
@@ -107,8 +122,11 @@ export function deriveAppState(
   const streakTarget = Math.max(1, Object.values(plannedPerWeek).reduce((a, b) => a + b, 0))
   const streak = weeklyStreak(sessions, checkIns, streakTarget, today, gamificationConfig)
   const prs = personalRecords(sessions)
+  // Completed goals still count: their milestones were earned.
   const milestoneHitDates = windowViews.flatMap((w) =>
-    w.goals.flatMap((g) => g.milestones.map((m) => m.hitOn).filter((d): d is IsoDate => d !== undefined)),
+    [...w.goals, ...w.completedGoals].flatMap((g) =>
+      g.milestones.map((m) => m.hitOn).filter((d): d is IsoDate => d !== undefined),
+    ),
   )
 
   const unlocked = evaluateAchievements(achievements, {
