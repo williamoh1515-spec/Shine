@@ -20,6 +20,17 @@ import {
 
 type Names = Record<string, Exercise>
 
+/** "Pair with: Nordic curl": an exercise for the opposite muscles, good as a superset. */
+function PairLine({ exerciseId, names }: { exerciseId: string; names: Names }) {
+  const pairs = (names[exerciseId]?.pairWith ?? []).filter((id) => names[id] !== undefined && !names[id]?.hidden)
+  if (pairs.length === 0) return null
+  return (
+    <p className="small muted">
+      ⇄ Pair with: {pairs.map((id) => exerciseName(id, names)).join(' or ')} (opposite muscles, as a superset)
+    </p>
+  )
+}
+
 function StrengthBlock({ p, title, names }: { p: StrengthPrescription; title?: string; names: Names }) {
   const [lo, hi] = p.repRange
   const loadType = names[p.exerciseId]?.loadType
@@ -42,6 +53,7 @@ function StrengthBlock({ p, title, names }: { p: StrengthPrescription; title?: s
           {strengthNoteText[n]}
         </p>
       ))}
+      {!title && <PairLine exerciseId={p.exerciseId} names={names} />}
     </div>
   )
 }
@@ -75,6 +87,7 @@ function RepsBlock({ p, weighted, names }: { p: RepsPrescription; weighted?: Str
           </>
         )}
         {p.regression && p.action === 'regress' && <p className="small">Use: {p.regression}</p>}
+        <PairLine exerciseId={p.exerciseId} names={names} />
       </div>
       {weighted && p.action !== 'regress' && (
         <StrengthBlock p={weighted} names={names} title={`${exerciseName(weighted.exerciseId, names)} (Day A)`} />
@@ -109,6 +122,7 @@ function TimedBlock({ p, names }: { p: TimedPrescription; names: Names }) {
       </p>
       <p className="small">{timedActionText[p.action]}</p>
       {p.regression && <p className="small">Use: {p.regression}</p>}
+      <PairLine exerciseId={p.exerciseId} names={names} />
     </div>
   )
 }

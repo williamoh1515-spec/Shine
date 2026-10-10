@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { saveExercise, saveWindow } from '../../data/repositories/catalog'
 import { customId } from '../../domain/catalog'
 import type { Exercise } from '../../domain/models'
+import { BalanceCard } from '../components/BalanceCard'
 import { ExerciseEditor } from '../components/ExerciseEditor'
 import { ProgressRing } from '../components/ProgressRing'
 import type { AppState } from '../state/derive'
@@ -46,6 +47,8 @@ export function WindowView({ state, windowId, exerciseId, today, navigate }: Pro
   const selected = exerciseId ?? (singleExercise ? part?.exerciseIds[0] : undefined)
   const takenIds = new Set(Object.keys(exercisesById))
   const hiddenHere = hiddenExercises.filter((e) => editable.bodyParts.some((b) => b.exerciseIds.includes(e.id)))
+  // Balance is shown where the exercises know which muscles they train (e.g. Strength).
+  const hasMuscleData = config.bodyParts.some((b) => b.exerciseIds.some((id) => (exercisesById[id]?.muscles?.length ?? 0) > 0))
 
   const addPart = async () => {
     const title = newPart.trim()
@@ -119,6 +122,10 @@ export function WindowView({ state, windowId, exerciseId, today, navigate }: Pro
             })}
           </ul>
           {part && part.exerciseIds.length === 0 && <p className="muted small">No exercises here yet.</p>}
+
+          {!editing && hasMuscleData && (
+            <BalanceCard results={state.balance} exercises={exercisesById} windowId={windowId} />
+          )}
 
           {editing && part && (
             <section className="card" aria-label="Edit this window">

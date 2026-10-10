@@ -167,7 +167,8 @@ fieldset { min-inline-size: 0; }
   padding-bottom: 4px;
   scrollbar-width: none;
 }
-.chips button { white-space: nowrap; border-radius: 999px; }
+/* Chips keep their full label and the row scrolls sideways when there are many. */
+.chips button { white-space: nowrap; border-radius: 999px; flex: none; }
 
 .badge {
   display: inline-flex;

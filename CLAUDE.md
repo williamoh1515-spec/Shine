@@ -59,13 +59,16 @@ src/
     priors.ts        # expected pace per exercise ("prior"): per-lift research numbers × training level
     personalPace.ts  # your own trend from logs, blended with the prior; "faster than expected" raise
     naturalPace.ts   # goal suggestions one training block ahead (prior + personal pace)
+    balance.ts       # opposite-muscle balance: measured strength ratios (test exercises) + weekly sets
     profileLink.ts   # encode/decode/validate profile links (untrusted input: narrowed + bounded)
     gamification.ts  # XP, levels, streaks, PRs, achievement checks
     oneRepMax.ts     # e1RM estimators
     dates.ts         # pure ISO-date helpers (UTC math)
   config/
     progression.config.ts   # all science-derived numbers (increments, rep ranges, deload rules)
-    windows.config.ts       # which windows exist, which exercises belong to each
+    windows.config.ts       # which windows exist, which exercises belong to each (muscles + pairWith per exercise)
+    exercises.knee.config.ts # knee & balance (physio-style) and ratio-test exercises
+    balance.config.ts       # antagonist pairs: target ratios, why, evidence level, sources (shown as info boxes)
     achievements.config.ts  # achievement definitions (data, not code)
     profile.seed.ts         # types + loader for the optional git-ignored profile.local.ts (my baselines/goals)
   data/

@@ -88,6 +88,19 @@
   gap: 8px;
 }
 
+.balance-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.balance-list li {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border-left: 4px solid transparent;
+}
+.balance-list li.problem { border-left-color: var(--warning); }
+.balance-row { display: grid; grid-template-columns: minmax(0, 9rem) 1fr auto; gap: 8px; align-items: center; }
+.balance-row .bar > span { background: var(--series-1); }
+
 .feeling { gap: 6px; }
 .feeling button { flex: 1; padding: 0; font-size: 1.3rem; }
 

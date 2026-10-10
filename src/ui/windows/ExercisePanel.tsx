@@ -50,6 +50,7 @@ export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
   const view = state.windows.find((w) => w.window.id === windowId)
   const goalView = view?.goals.find((g) => g.goal.exerciseId === exerciseId)
   const completed = (view?.completedGoals ?? []).filter((g) => g.goal.exerciseId === exerciseId)
+  const pairs = (exercise?.pairWith ?? []).filter((id) => exercisesById[id] !== undefined && !exercisesById[id]?.hidden)
   const sessions = (view?.sessions ?? []).filter((s) => s.setLogs.some((l) => l.exerciseId === exerciseId))
   const loggable = [exerciseId, exercise?.weightedVariantId, ...(exercise?.accessories ?? [])].filter(
     (id): id is string => id !== undefined,
@@ -112,6 +113,23 @@ export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
           <button className="primary" onClick={() => setSheet('goal')}>
             🎯 Set a goal
           </button>
+        </section>
+      )}
+
+      {(pairs.length > 0 || (goalView && exercise?.notes)) && (
+        <section className="card" aria-label="Technique and pairs">
+          {goalView && exercise?.notes && <p className="small">{exercise.notes}</p>}
+          {pairs.length > 0 && (
+            <p className="small">
+              ⇄ Pairs well with (opposite muscles):{' '}
+              {pairs.map((id, i) => (
+                <span key={id}>
+                  {i > 0 && ' · '}
+                  <a href={`#/w/${windowId}/${id}`}>{exerciseName(id, exercisesById)}</a>
+                </span>
+              ))}
+            </p>
+          )}
         </section>
       )}
 

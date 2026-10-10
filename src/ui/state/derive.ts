@@ -1,5 +1,7 @@
 import { achievements } from '../../config/achievements.config'
 import { gamificationConfig, progressionConfig } from '../../config/progression.config'
+import { balanceConfig, balancePairs } from '../../config/balance.config'
+import { evaluateBalance, type BalanceResult } from '../../domain/balance'
 import type { Catalog } from '../../domain/catalog'
 import {
   computeXp,
@@ -67,6 +69,8 @@ export interface AppState {
   hasDemo: boolean
   catalog: Catalog
   profile: Profile
+  /** Opposite-muscle balance across all logged training. */
+  balance: BalanceResult[]
 }
 
 export function deriveAppState(
@@ -184,5 +188,6 @@ export function deriveAppState(
     hasDemo: goals.some((g) => g.demo) || sessions.some((s) => s.demo),
     catalog,
     profile,
+    balance: evaluateBalance(balancePairs, sessions, exercisesById, today, balanceConfig),
   }
 }
