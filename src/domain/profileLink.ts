@@ -1,3 +1,4 @@
+import { MUSCLE_GROUPS } from './models'
 import type {
   BodyPart,
   Equipment,
@@ -170,6 +171,10 @@ function parseExercise(v: unknown): Exercise {
   if (v.loadType !== undefined) exercise.loadType = oneOf(v.loadType, LOAD_TYPES, 'load type')
   if (v.liftClass !== undefined) exercise.liftClass = oneOf(v.liftClass, LIFT_CLASSES, 'lift class')
   if (v.implementCount !== undefined) exercise.implementCount = v.implementCount === 2 ? 2 : 1
+  if (v.muscles !== undefined) {
+    exercise.muscles = list(v.muscles, 'muscles', MUSCLE_GROUPS.length).map((m) => oneOf(m, MUSCLE_GROUPS, 'muscle'))
+  }
+  if (v.pairWith !== undefined) exercise.pairWith = list(v.pairWith, 'pairs', 12).map((p) => id(p, 'pair id'))
   if (v.fatigueTags !== undefined) {
     exercise.fatigueTags = list(v.fatigueTags, 'fatigue tags', TAGS.length).map((t) => oneOf(t, TAGS, 'fatigue tag'))
   }

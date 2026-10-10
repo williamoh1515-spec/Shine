@@ -87,6 +87,14 @@ describe('profile links', () => {
     expect(parseProfileLink(badRange).ok).toBe(false)
   })
 
+  it('carries muscles and antagonist pairs, and rejects unknown muscles', () => {
+    const withMuscles = { ...link, exercises: [{ ...link.exercises[0], muscles: ['quads', 'glutes'], pairWith: ['nordic-curl'] }] }
+    const parsed = parseProfileLink(withMuscles)
+    expect(parsed.ok && parsed.link.exercises[0]).toMatchObject({ muscles: ['quads', 'glutes'], pairWith: ['nordic-curl'] })
+    const bad = { ...link, exercises: [{ ...link.exercises[0], muscles: ['biceps-of-steel'] }] }
+    expect(parseProfileLink(bad).ok).toBe(false)
+  })
+
   it('rejects unsafe ids', () => {
     const evil = { ...link, exercises: [{ ...link.exercises[0], id: '<img src=x>' }] }
     expect(parseProfileLink(evil).ok).toBe(false)

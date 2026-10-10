@@ -38,6 +38,30 @@ export type FatigueTag = 'pull' | 'push' | 'grip' | 'shoulder' | 'legs' | 'poste
 /** Extra difficulty when load can't go up (equipment limit). */
 export type Technique = 'tempo' | 'pause' | 'range'
 
+/** Muscle groups, for antagonist pairing and balance checks. */
+export type MuscleGroup =
+  | 'quads'
+  | 'hamstrings'
+  | 'glutes'
+  | 'hipAbductors'
+  | 'hipAdductors'
+  | 'hipFlexors'
+  | 'calves'
+  | 'tibialis'
+  | 'abs'
+  | 'lowerBack'
+  | 'chest'
+  | 'frontDelts'
+  | 'back'
+  | 'rearDelts'
+  | 'externalRotators'
+  | 'internalRotators'
+
+export const MUSCLE_GROUPS: readonly MuscleGroup[] = [
+  'quads', 'hamstrings', 'glutes', 'hipAbductors', 'hipAdductors', 'hipFlexors', 'calves', 'tibialis',
+  'abs', 'lowerBack', 'chest', 'frontDelts', 'back', 'rearDelts', 'externalRotators', 'internalRotators',
+]
+
 /** Main lift family, used to judge training level from strength relative to bodyweight. */
 export type LiftClass = 'squat' | 'hinge' | 'horizontalPush' | 'verticalPush'
 
@@ -86,6 +110,10 @@ export interface Exercise {
   liftClass?: LiftClass
   /** 2 for dumbbell lifts logged per dumbbell (total moved = 2 × the logged load). Default 1. */
   implementCount?: 1 | 2
+  /** Muscles mainly trained, for balance checks. */
+  muscles?: MuscleGroup[]
+  /** Exercises for the opposite muscles: good to pair (superset) with this one. */
+  pairWith?: string[]
   fatigueTags?: FatigueTag[]
   /** Per-exercise overrides of progression config. */
   overrides?: {
