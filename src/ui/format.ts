@@ -1,5 +1,7 @@
 import type { ProgressionModifier } from '../domain/checkIn'
 import type { Exercise, FatigueTag, GoalMetric, IssueType, LoadType, MilestonePlan, ProgressionModel, Technique } from '../domain/models'
+import type { GoalSuggestion } from '../domain/naturalPace'
+import type { PriorBasis } from '../domain/priors'
 import type { StrengthAction, StrengthNote } from '../domain/progression/strength'
 
 // Display formatting lives in the UI layer. Storage stays kg / metres / seconds.
@@ -57,6 +59,39 @@ export function metricInputUnit(metric: GoalMetric, model: ProgressionModel | un
     case 'workingLoadKg':
       return { label: 'kg', factor: 1 }
   }
+}
+
+/** "+0.8 kg/week", "+0.5 reps/week", "+1 min/week", "+5 s/week", "+2 km/week". */
+export function formatPerWeek(metric: GoalMetric, perWeek: number, model: ProgressionModel | undefined): string {
+  const sign = perWeek < 0 ? '−' : '+'
+  const v = Math.abs(perWeek)
+  switch (metric) {
+    case 'oneRepMaxKg':
+    case 'workingLoadKg':
+      return `${sign}${oneDecimal(v)} kg/week`
+    case 'maxReps':
+      return `${sign}${oneDecimal(v)} reps/week`
+    case 'maxDurationSec':
+      return model === 'running' ? `${sign}${oneDecimal(v / 60)} min/week` : `${sign}${oneDecimal(v)} s/week`
+    case 'distanceM':
+      return `${sign}${oneDecimal(v / 1000)} km/week`
+  }
+}
+
+const levelText = { novice: 'newer', intermediate: 'intermediate', advanced: 'advanced' } as const
+
+export const priorBasisText: Record<PriorBasis, string> = {
+  research: 'research-based',
+  extrapolated: 'estimated from related lifts',
+  heuristic: 'rule of thumb',
+}
+
+/** One line explaining where a suggested target comes from. */
+export function paceNote(metric: GoalMetric, s: GoalSuggestion): string {
+  const gain = `+${formatMetric(metric, s.expectedGain)} in ${s.horizonWeeks} weeks`
+  const who = s.level ? ` for a ${levelText[s.level]} lifter` : ''
+  const mine = s.personal ? ', adjusted to your own logged pace' : ''
+  return `Expected pace${who}: about ${gain} (${priorBasisText[s.basis]}${mine}). The goal is set at that pace: a push, but reachable.`
 }
 
 export const metricOptionText: Record<GoalMetric, string> = {

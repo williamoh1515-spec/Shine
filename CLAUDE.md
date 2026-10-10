@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Status
 v0.2 (Stage 1 of the "customizable app + profile links" plan). Windows/exercises are editable in the app (catalog in Dexie v2, merged over built-ins), equipment-aware progression (kettlebells, added load, pair loads) with a difficulty ladder (sets → tempo → pause → range → next load), timed holds/carries, easy-run model (single-run cap vs. longest of last 30 days), goal metrics `workingLoadKg` and `maxDurationSec`, and profile links (`#/join?p=…`) that set up another person's app. Demo data (`src/data/demo.ts`, flagged `demo: true`) can be loaded/cleared. Deployed via GitHub Pages (`.github/workflows/deploy.yml`).
-When a goal is reached, the app suggests a next goal ~12 weeks ahead at a natural pace for the lifter's level (`naturalProgress` in progression.config.ts — heuristic numbers, flagged as such); accepting it marks the old goal `completedOn` (kept as history, still counts for achievements).
+Goals adapt: expected pace per lift comes from research priors (`naturalProgress.liftKgPerYear`: Latella et al. 2022 for squat/deadlift/bench; overhead press extrapolated; level multipliers heuristic). Once ≥4 sessions over ≥3 weeks exist, the logged trend is blended in (`personalPace`). Faster than 1.5× expected → a one-tap "Raise goal" suggestion (never automatic; "Not now" until the next session). Goals can be changed any time ("Change goal" → new `manual` milestone plan; old plans kept; earned milestones still count). When a goal is reached, a next goal ~12 weeks ahead is suggested; accepting marks the old goal `completedOn`.
 Stage 2 (not built yet): workout templates (A/B sessions), activity log for climbing/surfing/skiing/yoga, readiness rules after sports, cross-domain "one progression lever per week" rule, habit XP.
 Profiles for other people live in git-ignored `profiles/*.json` (same format as a profile link) and are turned into links via Settings → Share a profile → From a profile file.
 
@@ -56,7 +56,9 @@ src/
     checkIn.ts       # check-ins + pain flags → ProgressionModifier consumed by progression models
     catalog.ts       # merges built-in windows/exercises with stored ones (overrides by id, hidden flags)
     loads.ts         # loads available from equipment (kettlebells, pairs, added load, plates)
-    naturalPace.ts   # training level from bodyweight standards, natural pace, next-goal suggestions
+    priors.ts        # expected pace per exercise ("prior"): per-lift research numbers × training level
+    personalPace.ts  # your own trend from logs, blended with the prior; "faster than expected" raise
+    naturalPace.ts   # goal suggestions one training block ahead (prior + personal pace)
     profileLink.ts   # encode/decode/validate profile links (untrusted input: narrowed + bounded)
     gamification.ts  # XP, levels, streaks, PRs, achievement checks
     oneRepMax.ts     # e1RM estimators

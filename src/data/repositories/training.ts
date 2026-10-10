@@ -2,7 +2,7 @@ import { progressionConfig } from '../../config/progression.config'
 import { maybeReplan } from '../../domain/goals'
 import type { CheckIn, Goal, IsoDate, Session, WindowId } from '../../domain/models'
 import { db, newId, type ShineDb } from '../db'
-import { getCatalog } from './catalog'
+import { getCatalog, getProfile } from './catalog'
 
 // The only place that reads/writes goals, sessions and check-ins.
 
@@ -24,6 +24,11 @@ export async function saveGoal(goal: Goal, database: ShineDb = db): Promise<void
 
 export async function deleteGoal(goalId: string, database: ShineDb = db): Promise<void> {
   await database.goals.delete(goalId)
+}
+
+/** "Not now" on a raise suggestion: hidden until the next session with a value for this goal. */
+export async function dismissRaise(goal: Goal, today: IsoDate, database: ShineDb = db): Promise<void> {
+  await database.goals.put({ ...goal, dismissedRaiseAt: today })
 }
 
 /** Marks a reached goal as completed (kept as history) and starts its successor, atomically. */
@@ -49,11 +54,12 @@ async function replanWindow(
   const goals = await database.goals.where('windowId').equals(windowId).toArray()
   const sessions = await database.sessions.where('windowId').equals(windowId).toArray()
   const { exercisesById } = await getCatalog(database)
+  const { bodyMassKg } = await getProfile(database)
   for (const goal of goals) {
     if (goal.completedOn !== undefined) continue
     const exercise = exercisesById[goal.exerciseId]
     if (exercise === undefined) continue
-    const updated = maybeReplan(goal, exercise, sessions, today, progressionConfig, force)
+    const updated = maybeReplan(goal, exercise, sessions, today, progressionConfig, force, bodyMassKg)
     if (updated !== undefined) await database.goals.put(updated)
   }
 }
@@ -64,7 +70,7 @@ export async function addSession(
   database: ShineDb = db,
 ): Promise<Session> {
   const session: Session = { ...input, id: newId('session') }
-  const tables = [database.sessions, database.goals, database.catalogExercises, database.catalogWindows]
+  const tables = [database.sessions, database.goals, database.catalogExercises, database.catalogWindows, database.meta]
   await database.transaction('rw', tables, async () => {
     await database.sessions.add(session)
     await replanWindow(session.windowId, today, undefined, database)
@@ -88,6 +94,7 @@ export async function addCheckIn(
     database.sessions,
     database.catalogExercises,
     database.catalogWindows,
+    database.meta,
   ]
   await database.transaction('rw', tables, async () => {
     await database.checkIns.add(checkIn)

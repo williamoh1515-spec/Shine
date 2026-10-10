@@ -1,14 +1,23 @@
 import { useState } from 'react'
-import { addCheckIn, addSession, deleteGoal, deleteSession, replaceGoal, saveGoal } from '../../data/repositories/training'
+import {
+  addCheckIn,
+  addSession,
+  deleteGoal,
+  deleteSession,
+  dismissRaise,
+  replaceGoal,
+  saveGoal,
+} from '../../data/repositories/training'
 import type { WeekProgram } from '../../domain/program'
 import { CheckInSheet } from '../components/CheckInSheet'
+import { GoalChangeEditor } from '../components/GoalChangeEditor'
 import { GoalEditor } from '../components/GoalEditor'
 import { MilestoneTimeline } from '../components/MilestoneTimeline'
 import { ProgramCard } from '../components/ProgramCard'
 import { ProgressCharts } from '../components/ProgressCharts'
 import { ProgressRing } from '../components/ProgressRing'
 import { SetLogger } from '../components/SetLogger'
-import { exerciseName, formatDate, formatDuration, formatMetric } from '../format'
+import { exerciseName, formatDate, formatDuration, formatMetric, formatPerWeek, priorBasisText } from '../format'
 import type { AppState } from '../state/derive'
 
 interface Props {
@@ -35,7 +44,7 @@ function suggestionFrom(program: WeekProgram | undefined) {
 }
 
 export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
-  const [sheet, setSheet] = useState<'checkIn' | 'goal' | 'next'>()
+  const [sheet, setSheet] = useState<'checkIn' | 'goal' | 'next' | 'change' | 'raise'>()
   const { exercisesById } = state.catalog
   const exercise = exercisesById[exerciseId]
   const view = state.windows.find((w) => w.window.id === windowId)
@@ -61,9 +70,25 @@ export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
                 {formatMetric(goalView.goal.metric, goalView.currentValue)} →{' '}
                 <strong>{formatMetric(goalView.goal.metric, goalView.goal.target)}</strong>
               </p>
+              {goalView.pace && (
+                <p className="small muted">
+                  {goalView.pace.observedPerWeek !== undefined && (
+                    <>
+                      Your pace:{' '}
+                      <strong>{formatPerWeek(goalView.goal.metric, goalView.pace.observedPerWeek, exercise?.progressionModel)}</strong>{' '}
+                      ·{' '}
+                    </>
+                  )}
+                  Expected: {formatPerWeek(goalView.goal.metric, goalView.pace.prior.perWeek, exercise?.progressionModel)} (
+                  {priorBasisText[goalView.pace.prior.basis]})
+                </p>
+              )}
             </div>
           </div>
           <div className="row wrap">
+            <button className="grow" onClick={() => setSheet('change')}>
+              ✏️ Change goal
+            </button>
             <button className="grow" onClick={() => setSheet('checkIn')}>
               💬 Something wrong?
             </button>
@@ -102,6 +127,27 @@ export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
             🚀 Take on the next goal
           </button>
           <p className="small muted">You can change the number before starting. The reached goal stays in your history.</p>
+        </section>
+      )}
+
+      {goalView?.raise && (
+        <section className="card" aria-label="Faster than expected">
+          <h3>🚀 You're progressing faster than expected</h3>
+          <p>
+            You're gaining <strong>{formatPerWeek(goalView.goal.metric, goalView.raise.observedPerWeek, exercise?.progressionModel)}</strong>,
+            about {Math.round(goalView.raise.ratio * 10) / 10}× the expected pace. Raise your goal from{' '}
+            {formatMetric(goalView.goal.metric, goalView.goal.target)} to{' '}
+            <strong>{formatMetric(goalView.goal.metric, goalView.raise.target)}</strong>, about {Math.round(goalView.raise.weeks)}{' '}
+            weeks away at your pace?
+          </p>
+          <div className="row wrap">
+            <button className="primary grow" onClick={() => setSheet('raise')}>
+              Raise goal
+            </button>
+            <button className="ghost" onClick={() => void dismissRaise(goalView.goal, today)}>
+              Not now
+            </button>
+          </div>
         </section>
       )}
 
@@ -189,6 +235,19 @@ export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
           onSubmit={async (c) => {
             await addCheckIn(c, today)
           }}
+          onClose={() => setSheet(undefined)}
+        />
+      )}
+      {(sheet === 'change' || sheet === 'raise') && exercise && goalView && (
+        <GoalChangeEditor
+          goal={goalView.goal}
+          exercise={exercise}
+          currentValue={goalView.currentValue}
+          today={today}
+          bodyMassKg={state.profile.bodyMassKg}
+          suggestedTarget={sheet === 'raise' ? goalView.raise?.target : undefined}
+          paceOverride={sheet === 'raise' ? goalView.raise?.perWeek : goalView.pace?.planningPerWeek}
+          title={sheet === 'raise' ? 'Raise your goal' : 'Change goal'}
           onClose={() => setSheet(undefined)}
         />
       )}

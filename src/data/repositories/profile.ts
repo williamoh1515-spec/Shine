@@ -29,7 +29,8 @@ export async function applyProfileLink(
       if (await wasLinkApplied(link.id, database)) return { applied: false, goalsAdded: 0 }
 
       const current = await getProfile(database)
-      await saveProfile({ ...current, ...link.profile }, database)
+      const profile = { ...current, ...link.profile }
+      await saveProfile(profile, database)
       if (link.exercises.length > 0) await database.catalogExercises.bulkPut(link.exercises)
       if (link.windows.length > 0) await database.catalogWindows.bulkPut(link.windows)
 
@@ -43,7 +44,10 @@ export async function applyProfileLink(
         // Same exercise + title already there (e.g. set up by hand): don't duplicate.
         if (existing.some((g) => g.exerciseId === seed.exerciseId && g.title === seed.title)) continue
         await database.goals.put(
-          createGoal({ ...seed, id: newId('goal'), exercise, startDate: today }, progressionConfig),
+          createGoal(
+            { ...seed, id: newId('goal'), exercise, startDate: today, bodyMassKg: profile.bodyMassKg },
+            progressionConfig,
+          ),
         )
         goalsAdded++
       }

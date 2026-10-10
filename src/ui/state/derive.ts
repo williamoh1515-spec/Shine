@@ -13,7 +13,10 @@ import {
   type StreakSummary,
 } from '../../domain/gamification'
 import { currentGoalValue, goalHistory, goalProgress, type ValuePoint } from '../../domain/metrics'
-import { milestoneStatuses, type MilestoneStatus } from '../../domain/milestones'
+import { projectionFor } from '../../domain/goals'
+import { earnedMilestoneDates, milestoneStatuses, type MilestoneStatus } from '../../domain/milestones'
+import { fastProgressSuggestion, observedRate, personalPace, type RaiseSuggestion } from '../../domain/personalPace'
+import { priorRate, type PriorRate } from '../../domain/priors'
 import type { CheckIn, Goal, IsoDate, Profile, Session, TrainingWindow, UnlockedAchievement, WindowId } from '../../domain/models'
 import { suggestNextGoal, type GoalSuggestion } from '../../domain/naturalPace'
 import { buildWeekProgram, type WeekProgram } from '../../domain/program'
@@ -30,6 +33,13 @@ export interface GoalView {
   program: WeekProgram
   /** Present once the goal is reached: the next, higher goal to take on. */
   suggestion?: GoalSuggestion
+  /**
+   * Expected pace (research prior for this exercise and lifter), the pace actually logged, and the
+   * pace to plan dates with when the goal is changed (your own, once there is enough data).
+   */
+  pace?: { prior: PriorRate; observedPerWeek?: number; planningPerWeek?: number }
+  /** Present when progress is clearly faster than expected: a more ambitious target. */
+  raise?: RaiseSuggestion
 }
 
 export interface WindowView {
@@ -76,6 +86,9 @@ export function deriveAppState(
         const history = goalHistory(goal, windowSessions)
         const currentValue = currentGoalValue(goal, windowSessions)
         const exercise = exercisesById[goal.exerciseId]
+        const recent = { points: history, today }
+        const prior = exercise && priorRate(goal.metric, exercise, currentValue, profile.bodyMassKg, progressionConfig)
+        const observed = observedRate(history, today, progressionConfig.personalPace)
         return {
           goal,
           currentValue,
@@ -88,7 +101,28 @@ export function deriveAppState(
           suggestion:
             exercise === undefined
               ? undefined
-              : suggestNextGoal(goal, currentValue, exercise, profile.bodyMassKg, progressionConfig),
+              : suggestNextGoal(goal, currentValue, exercise, profile.bodyMassKg, progressionConfig, recent),
+          pace:
+            prior === undefined
+              ? undefined
+              : {
+                  prior,
+                  observedPerWeek: observed?.perWeek,
+                  planningPerWeek:
+                    observed === undefined ? undefined : personalPace(prior.perWeek, observed, progressionConfig.personalPace),
+                },
+          raise:
+            exercise === undefined || prior === undefined
+              ? undefined
+              : fastProgressSuggestion(
+                  goal,
+                  history,
+                  currentValue,
+                  prior.perWeek,
+                  projectionFor(goal.metric, exercise, progressionConfig).roundTo,
+                  today,
+                  progressionConfig,
+                ),
         }
       })
   }
@@ -122,11 +156,9 @@ export function deriveAppState(
   const streakTarget = Math.max(1, Object.values(plannedPerWeek).reduce((a, b) => a + b, 0))
   const streak = weeklyStreak(sessions, checkIns, streakTarget, today, gamificationConfig)
   const prs = personalRecords(sessions)
-  // Completed goals still count: their milestones were earned.
+  // Completed goals and milestones planned before a target change still count: they were earned.
   const milestoneHitDates = windowViews.flatMap((w) =>
-    [...w.goals, ...w.completedGoals].flatMap((g) =>
-      g.milestones.map((m) => m.hitOn).filter((d): d is IsoDate => d !== undefined),
-    ),
+    [...w.goals, ...w.completedGoals].flatMap((g) => earnedMilestoneDates(g.goal, g.history)),
   )
 
   const unlocked = evaluateAchievements(achievements, {

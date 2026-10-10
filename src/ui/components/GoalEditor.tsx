@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { progressionConfig } from '../../config/progression.config'
 import { createGoal, metricsFor } from '../../domain/goals'
-import { suggestGoalTarget, type GoalSuggestion } from '../../domain/naturalPace'
+import { suggestGoalTarget } from '../../domain/naturalPace'
 import type { Exercise, Goal, GoalMetric } from '../../domain/models'
 import { newId } from '../../data/db'
-import { formatDate, formatMetric, metricInputUnit, metricOptionText } from '../format'
+import { formatDate, formatMetric, metricInputUnit, metricOptionText, paceNote } from '../format'
 import { Sheet } from './Sheet'
 
 interface Props {
@@ -19,14 +19,6 @@ interface Props {
   onClose: () => void
 }
 
-const levelText = { novice: 'newer', intermediate: 'intermediate', advanced: 'advanced' } as const
-
-function paceNote(s: GoalSuggestion): string {
-  if (s.level === undefined || s.expectedGain === undefined) {
-    return `A target about ${s.horizonWeeks} weeks ahead.`
-  }
-  return `Natural pace for a ${levelText[s.level]} lifter: about +${Math.round(s.expectedGain * 10) / 10} kg in ${s.horizonWeeks} weeks. The goal is set at that pace, so it's a push but reachable.`
-}
 
 const num = (s: string) => Number(s.replace(',', '.'))
 const valid = (s: string) => s.trim() !== '' && Number.isFinite(num(s))
@@ -63,16 +55,17 @@ export function GoalEditor({ windowId, exercise, today, bodyMassKg, initial, tit
         sessionsPerWeek: Math.min(7, Math.max(1, Math.round(num(sessionsPerWeek) || 2))),
         ...(metric === 'workingLoadKg' && valid(minReps) ? { minReps: Math.round(num(minReps)) } : {}),
         ...(usesLoad && valid(startLoad) ? { startLoadKg: num(startLoad) } : {}),
+        bodyMassKg,
       },
       progressionConfig,
     )
-  }, [baseline, target, sessionsPerWeek, fromTest, exercise, windowId, today, metric, minReps, startLoad, unit.factor, usesLoad])
+  }, [baseline, target, sessionsPerWeek, fromTest, exercise, windowId, today, metric, minReps, startLoad, unit.factor, usesLoad, bodyMassKg])
 
   const suggest = () => {
     if (!valid(baseline)) return
     const s = suggestGoalTarget(metric, num(baseline) * unit.factor, exercise, bodyMassKg, progressionConfig)
     setTarget(String(Math.round((s.target / unit.factor) * 100) / 100))
-    setNote(paceNote(s))
+    setNote(paceNote(metric, s))
   }
 
   return (

@@ -24,7 +24,10 @@ export async function ensureSeeded(
       const exercise = exercisesById[seed.exerciseId]
       if (exercise === undefined) continue
       await database.goals.put(
-        createGoal({ ...seed, id: newId('goal'), exercise, startDate: today }, progressionConfig),
+        createGoal(
+          { ...seed, id: newId('goal'), exercise, startDate: today, bodyMassKg: profile.bodyMassKg },
+          progressionConfig,
+        ),
       )
     }
     if (Object.keys(profile).length > 0 && !(await database.meta.get(PROFILE_KEY))) {
