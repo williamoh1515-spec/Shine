@@ -158,6 +158,9 @@ export interface Session {
   painFlag?: boolean
   /** 1 (awful) – 5 (great) */
   feeling?: number
+  /** Set when logged from a plan day; used to suggest the next day of the plan. */
+  planId?: string
+  planDayId?: string
   demo?: boolean
 }
 

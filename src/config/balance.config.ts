@@ -30,7 +30,8 @@ export const balancePairs: BalancePair[] = [
     a: { label: 'Hamstrings', muscles: ['hamstrings'], fixes: ['nordic-curl', 'single-leg-rdl', 'single-leg-hamstring-bridge'] },
     b: { label: 'Quads', muscles: ['quads'], fixes: ['step-down', 'split-squat-box', 'spanish-squat'] },
     strength: { min: 0.6, testA: 'leg-curl', testB: 'leg-extension' },
-    volume: { aim: 1, tolerance: 0.35 },
+    // Only weak hamstrings are linked to injury; more hamstring than quad work isn't a problem.
+    volume: { aim: 1, tolerance: 0.35, atLeast: true },
     info: {
       aim: 'Hamstrings at least 60% as strong as quads; train them about as often.',
       why: 'Hamstrings hold the shin back when you land, cut or decelerate, protecting the ACL and themselves from strains. Squat-heavy training builds quads much faster.',

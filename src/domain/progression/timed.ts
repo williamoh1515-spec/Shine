@@ -17,9 +17,12 @@ export interface TimedPrescription {
   regression?: string
 }
 
+/** Same shape as the config's `timed` section, with plain numbers so plans can override them. */
+export type TimedConfig = { [K in keyof ProgressionConfig['timed']]: number }
+
 export interface TimedInput {
   exercise: Exercise
-  config: ProgressionConfig['timed']
+  config: TimedConfig
   windowSessions: Session[]
   loads: LoadSet
   loadIncrementKg: number

@@ -72,6 +72,17 @@ const mainExercises: Exercise[] = [
   // Core
   { id: 'hanging-knee-raise', name: 'Hanging knee raise', progressionModel: 'repsEndurance', muscles: ['hipFlexors', 'abs'], pairWith: ['hip-thrust'], regression: 'Lying leg raise' },
   { id: 'ab-wheel', name: 'Ab wheel rollout', progressionModel: 'repsEndurance', muscles: ['abs'], pairWith: ['back-extension'], regression: 'Kneeling rollout, shorter range' },
+  {
+    id: 'side-plank',
+    name: 'Side plank (per side)',
+    progressionModel: 'timed',
+    loadType: 'bodyweight',
+    muscles: ['abs', 'hipAbductors'],
+    pairWith: ['copenhagen-plank'],
+    overrides: { maxHoldSec: 45, workingSets: 2 },
+    regression: 'Side plank from the knees',
+    notes: 'Straight line from head to feet, hips high. Trains the side of the trunk and the outer hip.',
+  },
   // Cardio
   { id: 'ride', name: 'Bike ride', progressionModel: 'cycling' },
   { id: 'run', name: 'Run', progressionModel: 'running' },
@@ -99,7 +110,7 @@ export const windows: TrainingWindow[] = [
           'tibialis-raise', 'single-leg-balance',
         ],
       },
-      { id: 'core', title: 'Core', exerciseIds: ['hanging-knee-raise', 'ab-wheel', 'cable-crunch', 'back-extension'] },
+      { id: 'core', title: 'Core', exerciseIds: ['hanging-knee-raise', 'ab-wheel', 'side-plank', 'cable-crunch', 'back-extension'] },
       {
         id: 'ratio-tests',
         title: 'Ratio tests',
