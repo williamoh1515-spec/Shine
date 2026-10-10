@@ -55,3 +55,23 @@ export async function getProfile(database: ShineDb = db): Promise<Profile> {
 export async function saveProfile(profile: Profile, database: ShineDb = db): Promise<void> {
   await database.meta.put({ key: PROFILE_KEY, value: profile })
 }
+
+const ACTIVE_PLAN_KEY = 'activePlan'
+
+export interface ActivePlan {
+  planId: string
+  startedOn: string
+}
+
+export async function getActivePlan(database: ShineDb = db): Promise<ActivePlan | null> {
+  const value = (await database.meta.get(ACTIVE_PLAN_KEY))?.value
+  if (typeof value !== 'object' || value === null) return null
+  const { planId, startedOn } = value as Record<string, unknown>
+  return typeof planId === 'string' && typeof startedOn === 'string' ? { planId, startedOn } : null
+}
+
+/** Follow a plan (or stop following with null). */
+export async function setActivePlan(plan: ActivePlan | null, database: ShineDb = db): Promise<void> {
+  if (plan === null) await database.meta.delete(ACTIVE_PLAN_KEY)
+  else await database.meta.put({ key: ACTIVE_PLAN_KEY, value: plan })
+}

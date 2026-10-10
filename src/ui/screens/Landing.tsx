@@ -1,10 +1,10 @@
 import { useState } from 'react'
+import { achievements } from '../../config/achievements.config'
+import { planTimeConfig } from '../../config/plans.config'
 import { clearDemo, loadDemo } from '../../data/demo'
-import { weekStart } from '../../domain/dates'
-import { AchievementGrid } from '../components/AchievementGrid'
+import { estimateMinutes } from '../../domain/plans'
 import { ProgressRing } from '../components/ProgressRing'
 import { WindowEditor } from '../components/WindowEditor'
-import { formatMetric } from '../format'
 import type { AppState } from '../state/derive'
 
 interface Props {
@@ -13,11 +13,12 @@ interface Props {
   navigate: (hash: string) => void
 }
 
+/** Home: progress header, next workout, and tiles for each area, plans and achievements. */
 export function Landing({ state, today, navigate }: Props) {
-  const { level, streak } = state
+  const { level, streak, activePlan } = state
   const weekDone = Math.min(streak.thisWeekSessions, streak.target)
-  const monday = weekStart(today)
   const [creating, setCreating] = useState(false)
+  const next = activePlan?.next
 
   return (
     <div className="stack">
@@ -60,48 +61,58 @@ export function Landing({ state, today, navigate }: Props) {
         </div>
       </section>
 
-      {state.hasDemo ? (
-        <div className="notice row spread wrap small">
-          <span>
-            <span className="badge demo">DEMO</span> Fake sample data is loaded so you can explore.
+      {activePlan && next ? (
+        <button className="card next-workout" onClick={() => navigate(`#/plans/${activePlan.plan.id}/${next.id}`)}>
+          <span className="small muted">Next workout · {activePlan.plan.name}</span>
+          <strong className="big">{next.title}</strong>
+          <span className="small">
+            {next.items.length} exercises · ≈ {estimateMinutes(next, state.catalog.exercisesById, planTimeConfig)} min · tap to start →
           </span>
-          <button onClick={() => void clearDemo()}>Clear demo data</button>
-        </div>
+        </button>
       ) : (
-        <div className="notice row spread wrap small">
-          <span>Want to see how it looks with 6 weeks of training?</span>
-          <button onClick={() => void loadDemo(today)}>Load demo data</button>
-        </div>
+        <button className="card next-workout" onClick={() => navigate('#/plans')}>
+          <strong>📋 Pick a training plan</strong>
+          <span className="small muted">3 balanced sessions a week, ready to log.</span>
+        </button>
       )}
 
-      <section className="stack" aria-label="Training windows">
-        <h2>Your windows</h2>
+      <section aria-label="Areas" className="tiles">
         {state.windows.map((w) => {
           const main = w.goals[0]
-          const thisWeek = w.sessions.filter((s) => s.date >= monday).length
           return (
-            <button key={w.window.id} className="card window-card" onClick={() => navigate(`#/w/${w.window.id}`)}>
-              <span className="window-icon" aria-hidden="true">
-                {w.window.icon}
-              </span>
-              <span className="grow" style={{ textAlign: 'left' }}>
-                <strong>{w.window.title}</strong> <span className="badge">Lv {w.level.level}</span>
-                <br />
-                <span className="small muted">
-                  {main
-                    ? `${main.goal.title} · now ${formatMetric(main.goal.metric, main.currentValue)}`
-                    : 'No goal yet. Tap to set one'}
+            <button key={w.window.id} className="card tile" onClick={() => navigate(`#/w/${w.window.id}`)}>
+              <span className="row spread" style={{ width: '100%' }}>
+                <span className="window-icon" aria-hidden="true">
+                  {w.window.icon}
                 </span>
-                <br />
-                <span className="small muted">
-                  {thisWeek}/{w.plannedPerWeek} sessions this week
-                  {w.goals.length > 1 ? ` · ${w.goals.length} goals` : ''}
-                </span>
+                {main && <ProgressRing value={main.progress} size={40} label={`${main.goal.title} progress`} />}
               </span>
-              {main && <ProgressRing value={main.progress} size={56} label={`${main.goal.title} progress`} />}
+              <strong>{w.window.title}</strong>
+              <span className="small muted">
+                Lv {w.level.level} · {w.goals.length} {w.goals.length === 1 ? 'goal' : 'goals'}
+              </span>
             </button>
           )
         })}
+        <button className="card tile" onClick={() => navigate('#/plans')}>
+          <span className="window-icon" aria-hidden="true">
+            📋
+          </span>
+          <strong>Plans</strong>
+          <span className="small muted">{activePlan ? 'Following 1 plan' : 'Choose a 3-day plan'}</span>
+        </button>
+        <button className="card tile" onClick={() => navigate('#/achievements')}>
+          <span className="window-icon" aria-hidden="true">
+            🏅
+          </span>
+          <strong>Achievements</strong>
+          <span className="small muted">
+            {state.unlocked.length}/{achievements.length} unlocked
+          </span>
+        </button>
+      </section>
+
+      <section className="stack" aria-label="More areas" style={{ gap: 8 }}>
         {state.dormantWindows.map((w) => (
           <button key={w.id} className="list-button" onClick={() => navigate(`#/w/${w.id}`)}>
             <span aria-hidden="true">{w.icon}</span>
@@ -124,7 +135,19 @@ export function Landing({ state, today, navigate }: Props) {
         />
       )}
 
-      <AchievementGrid unlocked={state.unlocked} />
+      {state.hasDemo ? (
+        <div className="notice row spread wrap small">
+          <span>
+            <span className="badge demo">DEMO</span> Fake sample data is loaded so you can explore.
+          </span>
+          <button onClick={() => void clearDemo()}>Clear demo data</button>
+        </div>
+      ) : (
+        <div className="notice row spread wrap small">
+          <span>Want to see how it looks with 6 weeks of training?</span>
+          <button onClick={() => void loadDemo(today)}>Load demo data</button>
+        </div>
+      )}
     </div>
   )
 }

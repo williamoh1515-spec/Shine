@@ -1,6 +1,9 @@
 import { achievements } from '../../config/achievements.config'
 import { gamificationConfig, progressionConfig } from '../../config/progression.config'
 import { balanceConfig, balancePairs } from '../../config/balance.config'
+import { plansById } from '../../config/plans.config'
+import type { ActivePlan } from '../../data/repositories/catalog'
+import { nextDay, type Plan, type PlanDay } from '../../domain/plans'
 import { evaluateBalance, type BalanceResult } from '../../domain/balance'
 import type { Catalog } from '../../domain/catalog'
 import {
@@ -71,6 +74,11 @@ export interface AppState {
   profile: Profile
   /** Opposite-muscle balance across all logged training. */
   balance: BalanceResult[]
+  /** The plan being followed and its next day. */
+  activePlan?: { plan: Plan; startedOn: IsoDate; next?: PlanDay }
+  sessions: Session[]
+  goals: Goal[]
+  checkIns: CheckIn[]
 }
 
 export function deriveAppState(
@@ -80,6 +88,7 @@ export function deriveAppState(
   today: IsoDate,
   catalog: Catalog,
   profile: Profile,
+  active: ActivePlan | null = null,
 ): AppState {
   const { windows, exercisesById } = catalog
   const goalViewsFor = (windowId: WindowId): GoalView[] => {
@@ -189,5 +198,15 @@ export function deriveAppState(
     catalog,
     profile,
     balance: evaluateBalance(balancePairs, sessions, exercisesById, today, balanceConfig),
+    activePlan: activePlanView(active, sessions),
+    sessions,
+    goals,
+    checkIns,
   }
+}
+
+function activePlanView(active: ActivePlan | null, sessions: Session[]): AppState['activePlan'] {
+  const plan = active ? plansById[active.planId] : undefined
+  if (!active || !plan) return undefined
+  return { plan, startedOn: active.startedOn, next: nextDay(plan, sessions) }
 }

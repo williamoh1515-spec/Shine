@@ -7,7 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Status
 v0.2 (Stage 1 of the "customizable app + profile links" plan). Windows/exercises are editable in the app (catalog in Dexie v2, merged over built-ins), equipment-aware progression (kettlebells, added load, pair loads) with a difficulty ladder (sets → tempo → pause → range → next load), timed holds/carries, easy-run model (single-run cap vs. longest of last 30 days), goal metrics `workingLoadKg` and `maxDurationSec`, and profile links (`#/join?p=…`) that set up another person's app. Demo data (`src/data/demo.ts`, flagged `demo: true`) can be loaded/cleared. Deployed via GitHub Pages (`.github/workflows/deploy.yml`).
 Goals adapt: expected pace per lift comes from research priors (`naturalProgress.liftKgPerYear`: Latella et al. 2022 for squat/deadlift/bench; overhead press extrapolated; level multipliers heuristic). Once ≥4 sessions over ≥3 weeks exist, the logged trend is blended in (`personalPace`). Faster than 1.5× expected → a one-tap "Raise goal" suggestion (never automatic; "Not now" until the next session). Goals can be changed any time ("Change goal" → new `manual` milestone plan; old plans kept; earned milestones still count). When a goal is reached, a next goal ~12 weeks ahead is suggested; accepting marks the old goal `completedOn`.
-Stage 2 (not built yet): workout templates (A/B sessions), activity log for climbing/surfing/skiing/yoga, readiness rules after sports, cross-domain "one progression lever per week" rule, habit XP.
+Home = tiles (windows, Plans, Achievements). Plans (`#/plans`) are followed with one tap (`meta.activePlan`); a plan day is logged as one session tagged `planId`/`planDayId`, which picks the next day.
+Stage 2 (not built yet): editing plans in the app, activity log for climbing/surfing/skiing/yoga, readiness rules after sports, cross-domain "one progression lever per week" rule, habit XP.
 Profiles for other people live in git-ignored `profiles/*.json` (same format as a profile link) and are turned into links via Settings → Share a profile → From a profile file.
 
 Node is installed per-user via winget; in a fresh shell, reload PATH first if `node` isn't found.
@@ -60,6 +61,7 @@ src/
     personalPace.ts  # your own trend from logs, blended with the prior; "faster than expected" raise
     naturalPace.ts   # goal suggestions one training block ahead (prior + personal pace)
     balance.ts       # opposite-muscle balance: measured strength ratios (test exercises) + weekly sets
+    plans.ts         # ready-made plans: balance check, time estimate, next day, per-exercise prescription
     profileLink.ts   # encode/decode/validate profile links (untrusted input: narrowed + bounded)
     gamification.ts  # XP, levels, streaks, PRs, achievement checks
     oneRepMax.ts     # e1RM estimators
@@ -69,6 +71,7 @@ src/
     windows.config.ts       # which windows exist, which exercises belong to each (muscles + pairWith per exercise)
     exercises.knee.config.ts # knee & balance (physio-style) and ratio-test exercises
     balance.config.ts       # antagonist pairs: target ratios, why, evidence level, sources (shown as info boxes)
+    plans.config.ts         # suggested 3-day plans (legs/push/pull, full body ×3); unit-tested for balance and ≤ ~1 h
     achievements.config.ts  # achievement definitions (data, not code)
     profile.seed.ts         # types + loader for the optional git-ignored profile.local.ts (my baselines/goals)
   data/

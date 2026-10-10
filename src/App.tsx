@@ -3,6 +3,9 @@ import { ensureSeeded } from './data/seed'
 import { Celebrations } from './ui/components/Celebrations'
 import { useAppState } from './ui/hooks/useAppState'
 import { useToday } from './ui/hooks/useToday'
+import { PlanDayLogger } from './ui/plans/PlanDayLogger'
+import { PlansScreen } from './ui/plans/PlansScreen'
+import { Achievements } from './ui/screens/Achievements'
 import { Join } from './ui/screens/Join'
 import { Landing } from './ui/screens/Landing'
 import { Settings } from './ui/screens/Settings'
@@ -41,6 +44,20 @@ export default function App() {
       {route.name === 'landing' && <Landing state={state} today={today} navigate={navigate} />}
       {route.name === 'settings' && <Settings today={today} state={state} navigate={navigate} />}
       {route.name === 'share' && <ShareProfile navigate={navigate} />}
+      {route.name === 'achievements' && <Achievements state={state} navigate={navigate} />}
+      {route.name === 'plans' && route.dayId === undefined && (
+        <PlansScreen state={state} planId={route.planId} today={today} navigate={navigate} />
+      )}
+      {route.name === 'plans' && route.planId !== undefined && route.dayId !== undefined && (
+        <PlanDayLogger
+          key={`${route.planId}/${route.dayId}`}
+          state={state}
+          planId={route.planId}
+          dayId={route.dayId}
+          today={today}
+          navigate={navigate}
+        />
+      )}
       {route.name === 'join' && <Join encoded={route.payload} state={state} today={today} navigate={navigate} />}
       {route.name === 'window' && (
         <WindowView

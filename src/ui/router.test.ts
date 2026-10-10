@@ -15,6 +15,13 @@ describe('parseRoute', () => {
     expect(parseRoute('#/join')).toEqual({ name: 'join', payload: '' })
   })
 
+  it('parses achievements and plans', () => {
+    expect(parseRoute('#/achievements')).toEqual({ name: 'achievements' })
+    expect(parseRoute('#/plans')).toEqual({ name: 'plans', planId: undefined, dayId: undefined })
+    expect(parseRoute('#/plans/legs-push-pull')).toEqual({ name: 'plans', planId: 'legs-push-pull', dayId: undefined })
+    expect(parseRoute('#/plans/legs-push-pull/push')).toEqual({ name: 'plans', planId: 'legs-push-pull', dayId: 'push' })
+  })
+
   it('falls back to landing for unknown routes', () => {
     expect(parseRoute('#/nope')).toEqual({ name: 'landing' })
   })
