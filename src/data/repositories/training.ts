@@ -1,8 +1,8 @@
 import { progressionConfig } from '../../config/progression.config'
-import { exercisesById } from '../../config/windows.config'
 import { maybeReplan } from '../../domain/goals'
 import type { CheckIn, Goal, IsoDate, Session, WindowId } from '../../domain/models'
 import { db, newId, type ShineDb } from '../db'
+import { getCatalog } from './catalog'
 
 // The only place that reads/writes goals, sessions and check-ins.
 
@@ -35,6 +35,7 @@ async function replanWindow(
 ): Promise<void> {
   const goals = await database.goals.where('windowId').equals(windowId).toArray()
   const sessions = await database.sessions.where('windowId').equals(windowId).toArray()
+  const { exercisesById } = await getCatalog(database)
   for (const goal of goals) {
     const exercise = exercisesById[goal.exerciseId]
     if (exercise === undefined) continue
@@ -49,7 +50,8 @@ export async function addSession(
   database: ShineDb = db,
 ): Promise<Session> {
   const session: Session = { ...input, id: newId('session') }
-  await database.transaction('rw', database.sessions, database.goals, async () => {
+  const tables = [database.sessions, database.goals, database.catalogExercises, database.catalogWindows]
+  await database.transaction('rw', tables, async () => {
     await database.sessions.add(session)
     await replanWindow(session.windowId, today, undefined, database)
   })
@@ -66,7 +68,14 @@ export async function addCheckIn(
   database: ShineDb = db,
 ): Promise<CheckIn> {
   const checkIn: CheckIn = { ...input, id: newId('checkin') }
-  await database.transaction('rw', database.checkIns, database.goals, database.sessions, async () => {
+  const tables = [
+    database.checkIns,
+    database.goals,
+    database.sessions,
+    database.catalogExercises,
+    database.catalogWindows,
+  ]
+  await database.transaction('rw', tables, async () => {
     await database.checkIns.add(checkIn)
     if (checkIn.issue === 'missedSessions') {
       await replanWindow(checkIn.windowId, today, 'missedSessions', database)
