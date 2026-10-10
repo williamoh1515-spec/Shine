@@ -5,7 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Personal Gamified Training App
 
 ## Status
-Working prototype (v0.1). Strength (Pull/Push/Legs/Hinge/Core) and Cycling windows, milestones with auto re-planning, weekly programs, rule-based check-ins, XP/streaks/achievements, charts, JSON backup, PWA. Demo data (`src/data/demo.ts`, all rows flagged `demo: true`) can be loaded/cleared from the UI. Not yet: running progression model, custom windows/exercises from the UI, per-exercise overrides UI, rest-day XP, deployment.
+v0.2 (Stage 1 of the "customizable app + profile links" plan). Windows/exercises are editable in the app (catalog in Dexie v2, merged over built-ins), equipment-aware progression (kettlebells, added load, pair loads) with a difficulty ladder (sets → tempo → pause → range → next load), timed holds/carries, easy-run model (single-run cap vs. longest of last 30 days), goal metrics `workingLoadKg` and `maxDurationSec`, and profile links (`#/join?p=…`) that set up another person's app. Demo data (`src/data/demo.ts`, flagged `demo: true`) can be loaded/cleared. Deployed via GitHub Pages (`.github/workflows/deploy.yml`).
+Stage 2 (not built yet): workout templates (A/B sessions), activity log for climbing/surfing/skiing/yoga, readiness rules after sports, cross-domain "one progression lever per week" rule, habit XP.
+Profiles for other people live in git-ignored `profiles/*.json` (same format as a profile link) and are turned into links via Settings → Share a profile → From a profile file.
 
 Node is installed per-user via winget; in a fresh shell, reload PATH first if `node` isn't found.
 
@@ -45,12 +47,15 @@ Three layers. Dependencies point inward only: `ui → data → domain`.
 src/
   domain/            # PURE TypeScript. No React, no Dexie, no Date.now() inside logic.
     models.ts        # types: TrainingWindow, Exercise, SetLog, Session, Goal, Milestone, CheckIn, Achievement
-    progression/     # one file per model: strength.ts, endurance-reps.ts, cycling.ts (running: TODO)
+    progression/     # strength.ts (+ ladder.ts), endurance-reps.ts, timed.ts, running.ts, cycling.ts
     milestones.ts    # builds milestones from baseline + goal; re-plans when progress diverges
     goals.ts         # goal creation, projection rate per metric, maybeReplan
     metrics.ts       # per-session goal value (e1RM / best set / distance), current value, progress
     program.ts       # composes this week's program for a goal (picks the progression model)
     checkIn.ts       # check-ins + pain flags → ProgressionModifier consumed by progression models
+    catalog.ts       # merges built-in windows/exercises with stored ones (overrides by id, hidden flags)
+    loads.ts         # loads available from equipment (kettlebells, pairs, added load, plates)
+    profileLink.ts   # encode/decode/validate profile links (untrusted input: narrowed + bounded)
     gamification.ts  # XP, levels, streaks, PRs, achievement checks
     oneRepMax.ts     # e1RM estimators
     dates.ts         # pure ISO-date helpers (UTC math)
@@ -73,7 +78,7 @@ src/
   App.tsx
 ```
 
-Data flow: repositories → `useAppState` (live queries) → `deriveAppState` (pure, calls domain) → screens. Writes go through repositories; `addSession` / `addCheckIn` also run `maybeReplan` for the window's goals. Celebrations diff successive AppStates (bulk changes such as a demo load are ignored).
+Data flow: repositories → `useAppState` (live queries) → `deriveAppState` (pure, calls domain) → screens. UI code gets exercises/windows from `state.catalog`, never from `windows.config.ts` directly; edits start from `catalog.windowsForEditing` (unfiltered) so hidden exercises are never dropped. Writes go through repositories; `addSession` / `addCheckIn` also run `maybeReplan` for the window's goals. Celebrations diff successive AppStates (bulk changes such as a demo load are ignored).
 
 Rules:
 - `domain/` functions take inputs and return outputs. Pass `today` in as a parameter so everything is testable.

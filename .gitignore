@@ -15,6 +15,7 @@ dist-ssr
 # Personal data: never commit
 src/config/profile.local.ts
 CLAUDE.local.md
+profiles/
 
 # Editor directories and files
 .vscode/*
