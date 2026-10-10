@@ -165,6 +165,8 @@ export interface Goal {
   startLoadKg?: number
   /** Set when the goal was reached and replaced by a new one. Completed goals stay as history. */
   completedOn?: IsoDate
+  /** "Not now" on a raise-your-goal suggestion; it comes back after the next logged session. */
+  dismissedRaiseAt?: IsoDate
   /** Newest last. The last plan is the active one; older ones are history. */
   plans: MilestonePlan[]
   demo?: boolean

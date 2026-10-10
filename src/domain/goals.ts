@@ -1,7 +1,8 @@
 import type { ProgressionConfig } from '../config/progression.config'
 import { currentGoalValue } from './metrics'
-import { activePlan, evaluateReplan, initialPlan, replan } from './milestones'
+import { activePlan, buildMilestones, evaluateReplan, initialPlan, replan } from './milestones'
 import type { Exercise, Goal, GoalMetric, IsoDate, Session } from './models'
+import { priorRate } from './priors'
 
 export interface Projection {
   /** Conservative expected gain per week, in the goal's unit. */
@@ -44,15 +45,35 @@ function loadStep(exercise: Exercise, config: ProgressionConfig): number {
   return config.strength.loadIncrementKg[exercise.region ?? 'upper']
 }
 
-export function projectionFor(metric: GoalMetric, exercise: Exercise, config: ProgressionConfig): Projection {
+/** What the projection knows about the lifter, to pick the right per-lift pace. */
+export interface ProjectionContext {
+  currentValue?: number
+  bodyMassKg?: number
+}
+
+export function projectionFor(
+  metric: GoalMetric,
+  exercise: Exercise,
+  config: ProgressionConfig,
+  ctx: ProjectionContext = {},
+): Projection {
   const region = exercise.region ?? 'upper'
   switch (metric) {
     case 'oneRepMaxKg':
-    case 'workingLoadKg':
+    case 'workingLoadKg': {
+      // Big lifts: per-lift research pace for this lifter's level, slowed so dates stay reachable.
+      if (exercise.liftClass !== undefined) {
+        const prior = priorRate(metric, exercise, ctx.currentValue ?? 0, ctx.bodyMassKg, config)
+        return {
+          weeklyRate: prior.perWeek * config.naturalProgress.projectionConservatism,
+          roundTo: loadStep(exercise, config),
+        }
+      }
       return {
         weeklyRate: config.strength.conservativeGainKgPerWeek[region],
         roundTo: loadStep(exercise, config),
       }
+    }
     case 'maxReps':
       return { weeklyRate: config.repsEndurance.conservativeGainRepsPerWeek, roundTo: 1 }
     case 'maxDurationSec':
@@ -62,20 +83,6 @@ export function projectionFor(metric: GoalMetric, exercise: Exercise, config: Pr
     case 'distanceM':
       return { weeklyRate: config.cycling.conservativeGainMetresPerWeek, roundTo: 1000 }
   }
-}
-
-/** A modest default target to start from. Rough heuristic, meant to be edited. */
-export const SUGGESTED_TARGET_FACTOR: Record<GoalMetric, number> = {
-  oneRepMaxKg: 1.15,
-  workingLoadKg: 1.25,
-  maxReps: 1.5,
-  maxDurationSec: 1.3,
-  distanceM: 1.5,
-}
-
-export function suggestTarget(metric: GoalMetric, baseline: number, roundTo: number): number {
-  const raw = Math.max(baseline * SUGGESTED_TARGET_FACTOR[metric], baseline + roundTo)
-  return Math.ceil(raw / roundTo) * roundTo
 }
 
 /**
@@ -90,11 +97,12 @@ export function maybeReplan(
   today: IsoDate,
   config: ProgressionConfig,
   force?: 'missedSessions' | 'manual',
+  bodyMassKg?: number,
 ): Goal | undefined {
   const plan = activePlan(goal)
   if (plan === undefined) return undefined
   const current = currentGoalValue(goal, windowSessions)
-  const { weeklyRate } = projectionFor(goal.metric, exercise, config)
+  const { weeklyRate } = projectionFor(goal.metric, exercise, config, { currentValue: current, bodyMassKg })
   const next =
     force !== undefined
       ? plan.milestones.some((m) => m.targetValue > current)
@@ -118,12 +126,17 @@ export interface NewGoalInput {
   metric?: GoalMetric
   minReps?: number
   startLoadKg?: number
+  /** Lets big-lift milestone dates use the pace for this lifter's level. */
+  bodyMassKg?: number
   demo?: boolean
 }
 
 export function createGoal(input: NewGoalInput, config: ProgressionConfig): Goal {
   const metric = input.metric ?? metricFor(input.exercise)
-  const { weeklyRate, roundTo } = projectionFor(metric, input.exercise, config)
+  const { weeklyRate, roundTo } = projectionFor(metric, input.exercise, config, {
+    currentValue: input.baseline,
+    bodyMassKg: input.bodyMassKg,
+  })
   return {
     ...(input.minReps !== undefined ? { minReps: input.minReps } : {}),
     ...(input.startLoadKg !== undefined ? { startLoadKg: input.startLoadKg } : {}),
@@ -147,6 +160,59 @@ export function createGoal(input: NewGoalInput, config: ProgressionConfig): Goal
         roundTo,
         fractions: config.milestones.fractions,
       }),
+    ],
+  }
+}
+
+export interface GoalChange {
+  target: number
+  title?: string
+  sessionsPerWeek?: number
+}
+
+/**
+ * A goal with a new target: milestones are re-planned from where you are now (reason "manual").
+ * Earlier plans stay as history, so earned milestones are never lost. A target at or below the
+ * current value is allowed: the goal then simply counts as reached.
+ */
+export function changeGoalTarget(
+  goal: Goal,
+  change: GoalChange,
+  currentValue: number,
+  exercise: Exercise,
+  today: IsoDate,
+  config: ProgressionConfig,
+  bodyMassKg?: number,
+  /** Plan dates at this pace per week (e.g. the lifter's own pace) instead of the prior. */
+  paceOverride?: number,
+): Goal {
+  if (goal.completedOn !== undefined) throw new Error('A completed goal cannot be changed')
+  const projection = projectionFor(goal.metric, exercise, config, { currentValue, bodyMassKg })
+  const { roundTo } = projection
+  const weeklyRate =
+    paceOverride !== undefined && paceOverride > 0
+      ? paceOverride * config.naturalProgress.projectionConservatism
+      : projection.weeklyRate
+  return {
+    ...goal,
+    target: change.target,
+    title: change.title ?? goal.title,
+    sessionsPerWeek: change.sessionsPerWeek ?? goal.sessionsPerWeek,
+    plans: [
+      ...goal.plans,
+      {
+        createdOn: today,
+        reason: 'manual',
+        fromValue: currentValue,
+        milestones: buildMilestones({
+          baseline: currentValue,
+          target: change.target,
+          startDate: today,
+          weeklyRate,
+          roundTo,
+          fractions: config.milestones.fractions,
+        }),
+      },
     ],
   }
 }

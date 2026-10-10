@@ -126,17 +126,37 @@ export interface MilestoneStatus {
   hitOn?: IsoDate
 }
 
-/** Milestones of the original plan (stable targets) with the date each was first reached. */
-export function milestoneStatuses(goal: Goal, history: ValuePoint[]): MilestoneStatus[] {
-  const plan = activePlan(goal)
-  const original = goal.plans[0]
-  if (plan === undefined || original === undefined) return []
-  return original.milestones.map((m) => {
+/** Plans that set milestone values: the first one and every manual target change. */
+const setsTargets = (p: MilestonePlan) => p.reason === 'initial' || p.reason === 'manual'
+
+function statusesFor(basis: MilestonePlan, latest: MilestonePlan | undefined, history: ValuePoint[]): MilestoneStatus[] {
+  return basis.milestones.map((m) => {
     const hit = history.find((p) => p.value >= m.targetValue)
-    const current = plan.milestones.find((pm) => pm.index === m.index)
-    return {
-      milestone: current ?? m,
-      hitOn: hit?.date,
-    }
+    // Later re-plans (ahead/behind/missed) only move dates; match by index.
+    const redated = latest?.milestones.find((pm) => pm.index === m.index)
+    return { milestone: redated ?? m, hitOn: hit?.date }
   })
+}
+
+/**
+ * Milestones toward the current target (from the latest plan that set targets), with dates from
+ * the newest plan and the date each was first reached.
+ */
+export function milestoneStatuses(goal: Goal, history: ValuePoint[]): MilestoneStatus[] {
+  const basisIndex = goal.plans.findLastIndex(setsTargets)
+  const basis = goal.plans[basisIndex]
+  if (basis === undefined) return []
+  const latest = goal.plans.at(-1)
+  return statusesFor(basis, latest, history)
+}
+
+/** Every milestone ever reached for this goal, including ones planned before a target change. */
+export function earnedMilestoneDates(goal: Goal, history: ValuePoint[]): IsoDate[] {
+  const byValue = new Map<number, IsoDate>()
+  for (const plan of goal.plans.filter(setsTargets)) {
+    for (const s of statusesFor(plan, undefined, history)) {
+      if (s.hitOn !== undefined && !byValue.has(s.milestone.targetValue)) byValue.set(s.milestone.targetValue, s.hitOn)
+    }
+  }
+  return [...byValue.values()]
 }

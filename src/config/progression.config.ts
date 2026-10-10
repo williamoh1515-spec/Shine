@@ -97,35 +97,50 @@ export const progressionConfig = {
     conservativeGainMetresPerWeek: 2000,
   },
 
-  // Natural pace of progress, used to suggest realistic-but-pushing goals. HEURISTICS from
-  // coaching practice, not study values: beginners can add load nearly every week, intermediates
-  // every one to two weeks, advanced lifters every few weeks (e.g. RP Strength's progression
-  // guidance); strength-standards tables (StrengthLevel, StrengthLog, etc.) are built from
-  // user-logged lifts, disagree with each other by ~0.25× bodyweight, and ignore age, limb length
-  // and training history. Treat all numbers as editable estimates.
+  // Expected progress per exercise ("priors"), used for goal suggestions and milestone dates.
   naturalProgress: {
     // Strength relative to bodyweight (e1RM ÷ bodyweight) at which a male lifter counts as
-    // intermediate / advanced for each main lift. Below "intermediate" = novice.
+    // intermediate / advanced, used ONLY to pick the training level. Community tables
+    // (StrengthLevel, StrengthLog…) built from user-logged lifts; they disagree by ~0.25× bodyweight.
     standards: {
       squat: { intermediate: 1.5, advanced: 2.0 },
       hinge: { intermediate: 2.0, advanced: 2.5 },
       horizontalPush: { intermediate: 1.0, advanced: 1.5 },
       verticalPush: { intermediate: 0.65, advanced: 1.0 },
     },
-    // Share of current strength gained per month at each level (linear, not compounding).
-    monthlyGain: { novice: 0.06, intermediate: 0.02, advanced: 0.008 },
-    // Level assumed when bodyweight or lift class is unknown: the middle one, neither too
-    // timid nor reckless.
+    // e1RM gain per year for an intermediate, per lift. Squat, deadlift and bench: Latella et al.
+    // 2022 (Med Sci Sports Exerc), 1,896 powerlifters' competition records 2003–2018: squat
+    // ~20–25, deadlift ~18–21, bench ~10.5–13 kg/year (midpoints used). Overhead press: no data
+    // found; EXTRAPOLATED as about half of bench.
+    liftKgPerYear: { squat: 22, hinge: 20, horizontalPush: 11.5, verticalPush: 6 },
+    // Untrained lifters gain faster and the strongest gain least (direction supported by
+    // meta-analyses and by Latella's top quartile); the exact factors are HEURISTICS.
+    levelMultiplier: { novice: 2, intermediate: 1, advanced: 0.5 },
+    // Level assumed when bodyweight or lift class is unknown: the middle one.
     defaultLevel: 'intermediate',
-    // Goals aim at this many weeks of natural progress (about one training block).
+    weeksPerYear: 52.18,
+    // Goal suggestions aim this many weeks ahead (about one training block).
     horizonWeeks: 12,
-    // Average weeks per month, to turn the monthly gain into the horizon's gain.
-    weeksPerMonth: 4.345,
-    // For non-load metrics when a goal is reached: next target = current × factor, at least +step.
-    repsFactor: 1.25,
-    minRepsStep: 2,
-    durationFactor: 1.2,
-    distanceFactor: 1.2,
+    // Milestone dates use the prior slowed by this factor, so dates are reachable.
+    projectionConservatism: 0.8,
+  },
+
+  // Learning each person's own pace from their logs.
+  personalPace: {
+    // Only recent sessions describe current pace.
+    lookbackWeeks: 8,
+    // A trend needs enough data: at least this many sessions spread over at least this many weeks.
+    minPoints: 4,
+    minWeeks: 3,
+    // How many sessions' worth of trust the research prior gets when blending with your own data.
+    priorWeight: 6,
+    // "Faster than expected" = observed pace ≥ this × the prior, AND the goal would be reached
+    // at least `aheadWeeks` before its date.
+    fastFactor: 1.5,
+    aheadWeeks: 2,
+    // A raised goal (and dates planned from your pace) never assumes more than this × the prior
+    // pace, which protects against noisy logs while still letting fast beginners aim higher.
+    maxRaiseFactor: 3,
   },
 
   milestones: {
