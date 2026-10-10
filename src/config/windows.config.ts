@@ -1,0 +1,82 @@
+import type { Exercise, TrainingWindow } from '../domain/models'
+
+// Which windows exist and which exercises belong to them.
+// Adding a window or exercise should only require editing this file.
+
+export const exercises: Exercise[] = [
+  // Pull
+  {
+    id: 'pull-up',
+    name: 'Pull-up (rings)',
+    progressionModel: 'repsEndurance',
+    regression: 'Band-assisted pull-ups or slow negatives',
+    // Rear-delt / scapular work: a common limiter in pull-up endurance.
+    accessories: ['face-pull', 'band-pull-apart', 'scapular-pull-up'],
+    weightedVariantId: 'weighted-pull-up',
+  },
+  { id: 'weighted-pull-up', name: 'Weighted pull-up (added kg)', progressionModel: 'strength', region: 'upper' },
+  { id: 'ring-row', name: 'Ring row', progressionModel: 'repsEndurance', regression: 'Ring row, more upright body' },
+  { id: 'face-pull', name: 'Face pull', progressionModel: 'strength', region: 'upper', overrides: { repRange: [12, 15] } },
+  { id: 'band-pull-apart', name: 'Band pull-apart', progressionModel: 'repsEndurance' },
+  { id: 'scapular-pull-up', name: 'Scapular pull-up', progressionModel: 'repsEndurance' },
+  // Push
+  { id: 'bench-press', name: 'Bench press', progressionModel: 'strength', region: 'upper', regression: 'Dumbbell floor press' },
+  { id: 'overhead-press', name: 'Overhead press', progressionModel: 'strength', region: 'upper', regression: 'Landmine press' },
+  { id: 'push-up', name: 'Push-up', progressionModel: 'repsEndurance', regression: 'Incline push-up' },
+  // Legs — knee-friendly defaults: ROM/depth progressions before load.
+  { id: 'box-squat', name: 'Box squat', progressionModel: 'strength', region: 'lower', regression: 'Box squat to a higher box' },
+  {
+    id: 'split-squat-box',
+    name: 'Split squat to a box',
+    progressionModel: 'strength',
+    region: 'lower',
+    overrides: { loadIncrementKg: 2.5 },
+    regression: 'Split squat with a taller box (shorter range)',
+  },
+  // Hinge
+  { id: 'romanian-deadlift', name: 'Romanian deadlift', progressionModel: 'strength', region: 'lower', regression: 'Kettlebell RDL' },
+  { id: 'trap-bar-deadlift', name: 'Trap-bar deadlift', progressionModel: 'strength', region: 'lower', regression: 'Trap-bar deadlift from blocks' },
+  { id: 'hip-thrust', name: 'Hip thrust', progressionModel: 'strength', region: 'lower', regression: 'Glute bridge' },
+  // Core
+  { id: 'hanging-knee-raise', name: 'Hanging knee raise', progressionModel: 'repsEndurance', regression: 'Lying leg raise' },
+  { id: 'ab-wheel', name: 'Ab wheel rollout', progressionModel: 'repsEndurance', regression: 'Kneeling rollout, shorter range' },
+  // Cardio
+  { id: 'ride', name: 'Bike ride', progressionModel: 'cycling' },
+  { id: 'run', name: 'Run', progressionModel: 'running' },
+]
+
+export const windows: TrainingWindow[] = [
+  {
+    id: 'strength',
+    title: 'Strength',
+    icon: '🏋️',
+    enabled: true,
+    bodyParts: [
+      { id: 'pull', title: 'Pull', exerciseIds: ['pull-up', 'weighted-pull-up', 'ring-row', 'face-pull', 'band-pull-apart', 'scapular-pull-up'] },
+      { id: 'push', title: 'Push', exerciseIds: ['bench-press', 'overhead-press', 'push-up'] },
+      { id: 'legs', title: 'Legs', exerciseIds: ['box-squat', 'split-squat-box'] },
+      { id: 'hinge', title: 'Hinge', exerciseIds: ['romanian-deadlift', 'trap-bar-deadlift', 'hip-thrust'] },
+      { id: 'core', title: 'Core', exerciseIds: ['hanging-knee-raise', 'ab-wheel'] },
+    ],
+  },
+  {
+    // Optional: shown once a cycling goal exists (or set enabled: true).
+    id: 'cycling',
+    title: 'Cycling',
+    icon: '🚴',
+    enabled: false,
+    bodyParts: [{ id: 'bike', title: 'Bike', exerciseIds: ['ride'] }],
+  },
+  {
+    // Optional: shown once a running goal exists. No running progression model yet.
+    id: 'running',
+    title: 'Running',
+    icon: '🏃',
+    enabled: false,
+    bodyParts: [{ id: 'run', title: 'Run', exerciseIds: ['run'] }],
+  },
+]
+
+export const exercisesById: Record<string, Exercise> = Object.fromEntries(
+  exercises.map((e) => [e.id, e]),
+)
