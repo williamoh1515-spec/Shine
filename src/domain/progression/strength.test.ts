@@ -144,6 +144,89 @@ describe('suggestStrength', () => {
   })
 })
 
+describe('suggestStrength with fixed kettlebells', () => {
+  const bss: Exercise = {
+    id: 'bss',
+    name: 'Bulgarian split squat',
+    progressionModel: 'strength',
+    region: 'lower',
+    loadType: 'kettlebell',
+    overrides: { repRange: [6, 12] },
+  }
+  const bssParams = resolveStrengthParams(bss, progressionConfig)
+  const bells = [4, 8, 12, 16]
+  const run = (windowSessions: Session[], loads: number[] = bells, baseKg?: number, exercise = bss) =>
+    suggestStrength({
+      exercise,
+      params: resolveStrengthParams(exercise, progressionConfig),
+      windowSessions,
+      currentE1rm: 0,
+      loads,
+      baseKg,
+      modifier: NO_MODIFIER,
+      programStart: '2026-10-01',
+      today: '2026-10-10',
+    })
+
+  it('starts from the given current bell', () => {
+    const p = suggestStrength({
+      exercise: bss, params: bssParams, windowSessions: [], currentE1rm: 0, startLoadKg: 16,
+      loads: bells, modifier: NO_MODIFIER, programStart: '2026-10-01', today: '2026-10-10',
+    })
+    expect(p).toMatchObject({ action: 'start', loadKg: 16 })
+  })
+
+  it('adds a set instead of a too-big bell jump (12 → 16 kg = +33%)', () => {
+    const p = run([session('2026-10-08', sets('bss', 12, [12, 12, 12], 2))])
+    expect(p).toMatchObject({ action: 'ladder', ladderStep: 'addSet', sets: 4, loadKg: 12 })
+  })
+
+  it('moves to a slow eccentric once sets are maxed', () => {
+    const p = run([session('2026-10-08', sets('bss', 16, [12, 12, 12, 12], 2))])
+    expect(p).toMatchObject({ action: 'ladder', ladderStep: 'tempo', technique: 'tempo', sets: 4 })
+  })
+
+  it('keeps the ladder position while reps build', () => {
+    const p = run([session('2026-10-08', sets('bss', 16, [10, 9, 9, 8], 2).map((s) => ({ ...s, technique: 'tempo' as const })))])
+    expect(p).toMatchObject({ action: 'addReps', technique: 'tempo', sets: 4 })
+  })
+
+  it('flags that new equipment is needed when the ladder is exhausted at the heaviest bell', () => {
+    const top = sets('bss', 16, [12, 12, 12, 12], 2).map((s) => ({ ...s, technique: 'range' as const }))
+    const p = run([session('2026-10-08', top)])
+    expect(p.loadKg).toBe(16)
+    expect(p.notes).toContain('heavierEquipment')
+  })
+
+  it('takes the big jump once the ladder is exhausted below the heaviest bell', () => {
+    const top = sets('bss', 12, [12, 12, 12, 12], 2).map((s) => ({ ...s, technique: 'range' as const }))
+    const p = run([session('2026-10-08', top)])
+    expect(p).toMatchObject({ action: 'increaseLoad', loadKg: 16, sets: 3 })
+    expect(p.notes).toContain('bigJump')
+  })
+
+  it('treats +4 kg on a pull-up as a small jump when bodyweight is known', () => {
+    const pullUp: Exercise = { id: 'wpu', name: 'Weighted pull-up', progressionModel: 'strength', region: 'upper', loadType: 'addedLoad', overrides: { repRange: [4, 6] } }
+    const history = [session('2026-10-08', sets('wpu', 4, [6, 6, 6], 2))]
+    expect(run(history, [0, 4, 8, 12, 16], 75, pullUp)).toMatchObject({ action: 'increaseLoad', loadKg: 8 })
+    // Without bodyweight the jump looks like +100% → ladder instead.
+    expect(run(history, [0, 4, 8, 12, 16], undefined, pullUp).action).toBe('ladder')
+  })
+
+  it('counts moving up the ladder as progress, not a stall', () => {
+    const tempo = (d: string) =>
+      session(d, sets('bss', 16, [8, 8, 8, 8], 2).map((s) => ({ ...s, technique: 'tempo' as const })))
+    // Fewer reps with a slow eccentric is harder work, not 3 sessions without progress.
+    const history = [
+      session('2026-10-01', sets('bss', 16, [12, 12, 12, 12], 2)),
+      tempo('2026-10-03'),
+      tempo('2026-10-06'),
+      tempo('2026-10-08'),
+    ]
+    expect(run(history).action).toBe('addReps')
+  })
+})
+
 describe('isStalled', () => {
   const perf = (loadKg: number, totalReps: number) => ({ date: '', loadKg, sets: [], totalReps })
   it('needs enough history', () => {

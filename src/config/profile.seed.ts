@@ -1,20 +1,12 @@
+import type { Profile } from '../domain/models'
+import type { GoalSeedV1 } from '../domain/profileLink'
+
 // Personal baselines and goals. The committed app starts empty: real values live in
 // src/config/profile.local.ts (git-ignored). If that file exists it is used automatically.
+// Other people get their setup through a profile link instead (Settings → Share a profile).
 
-export interface Profile {
-  bodyMassKg?: number
-  heightCm?: number
-}
-
-export interface GoalSeed {
-  windowId: string
-  exerciseId: string
-  title: string
-  baseline: number
-  baselineSource: 'test' | 'manual'
-  target: number
-  sessionsPerWeek: number
-}
+export type { Profile }
+export type GoalSeed = GoalSeedV1
 
 interface LocalProfile {
   profile?: Profile

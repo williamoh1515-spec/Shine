@@ -27,6 +27,43 @@ export const progressionConfig = {
     // Projection rate for milestone dates. Conservative guess for an intermediate lifter;
     // real rates vary widely with training age, sleep and nutrition.
     conservativeGainKgPerWeek: { upper: 0.5, lower: 1 },
+    // Largest load jump taken in one step, relative to the mass moved. Bigger jumps (e.g. a
+    // 12 → 16 kg kettlebell = +33%) go through the ladder first. Practical heuristic, not a study value.
+    maxRelativeLoadJump: 0.2,
+    // Standard kettlebell sizes step in 4 kg (8, 12, 16, 20, 24…); used to round milestones.
+    kettlebellStepKg: 4,
+  },
+
+  // When the next load is missing or too big a jump (fixed-weight home equipment), difficulty
+  // rises one lever at a time: more sets → slower eccentric → pause → bigger range → next load.
+  // Order follows common coaching practice for limited equipment; evidence comparing these
+  // levers directly is thin.
+  ladder: {
+    maxSets: 4,
+    techniques: ['tempo', 'pause', 'range'] as const,
+  },
+
+  timed: {
+    // Holds and carries: add a few seconds per session at the same load, then move up the ladder.
+    holdIncrementSec: 5,
+    maxHoldSec: 60,
+    startHoldSec: 20,
+    sets: 3,
+    // Conservative projection for duration goals on holds/carries.
+    conservativeGainSecPerWeek: 5,
+  },
+
+  running: {
+    // Nielsen et al. 2025 (BJSM, ~5,200 runners): injury risk rose when a single run was >10%
+    // longer than the longest run of the previous 30 days; the authors suggest ~5% as a safer step.
+    lookbackDays: 30,
+    runIncrease: 0.05,
+    maxSingleRunIncrease: 0.1,
+    // Second weekly run is shorter than the long run.
+    shortRunFraction: 0.8,
+    defaultLongRunSec: 20 * 60,
+    // Easy runs only: talk-test pace. No intervals until a speed goal exists.
+    conservativeGainSecPerWeek: 60,
   },
 
   repsEndurance: {

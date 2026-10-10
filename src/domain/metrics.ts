@@ -6,14 +6,22 @@ export function sessionValue(
   metric: GoalMetric,
   exerciseId: string,
   session: Session,
+  minReps = 1,
 ): number | undefined {
   const sets = session.setLogs.filter((s) => s.exerciseId === exerciseId)
   if (sets.length === 0) return undefined
   switch (metric) {
     case 'oneRepMaxKg':
       return bestEstimatedOneRepMax(sets)
+    case 'workingLoadKg':
+      return maxOf(
+        sets.filter((s) => (s.reps ?? 0) >= minReps),
+        (s) => s.loadKg ?? 0,
+      )
     case 'maxReps':
       return maxOf(sets, (s) => s.reps)
+    case 'maxDurationSec':
+      return maxOf(sets, (s) => s.durationSec)
     case 'distanceM':
       return maxOf(sets, (s) => s.distanceM)
   }
@@ -37,7 +45,7 @@ export interface ValuePoint {
 export function goalHistory(goal: Goal, sessions: Session[]): ValuePoint[] {
   return sessions
     .filter((s) => s.date >= goal.startDate)
-    .map((s) => ({ date: s.date, value: sessionValue(goal.metric, goal.exerciseId, s) }))
+    .map((s) => ({ date: s.date, value: sessionValue(goal.metric, goal.exerciseId, s, goal.minReps) }))
     .filter((p): p is ValuePoint => p.value !== undefined)
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 }

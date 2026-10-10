@@ -1,7 +1,9 @@
 import type { ProgressionConfig } from '../../config/progression.config'
 import type { ProgressionModifier } from '../checkIn'
 import { diffDays } from '../dates'
-import type { Exercise, IsoDate, Session, SetLog } from '../models'
+import { loadAtOrBelow, nextLoad, relativeJump, type LoadSet } from '../loads'
+import type { Exercise, IsoDate, Session, SetLog, Technique } from '../models'
+import { nextLadderStep, type LadderStep } from './ladder'
 
 export interface StrengthParams {
   repRange: [number, number]
@@ -18,13 +20,17 @@ export interface StrengthParams {
   startingLoadFractionOfE1rm: number
   regressionLoadFraction: number
   tooHardLoadFraction: number
+  maxRelativeLoadJump: number
+  maxSets: number
+  techniques: readonly Technique[]
 }
 
 export function resolveStrengthParams(exercise: Exercise, config: ProgressionConfig): StrengthParams {
   const s = config.strength
+  const workingSets = exercise.overrides?.workingSets ?? s.workingSets
   return {
     repRange: exercise.overrides?.repRange ?? [s.repRange[0], s.repRange[1]],
-    workingSets: exercise.overrides?.workingSets ?? s.workingSets,
+    workingSets,
     loadIncrementKg:
       exercise.overrides?.loadIncrementKg ?? s.loadIncrementKg[exercise.region ?? 'upper'],
     targetRir: s.targetRir,
@@ -38,6 +44,9 @@ export function resolveStrengthParams(exercise: Exercise, config: ProgressionCon
     startingLoadFractionOfE1rm: s.startingLoadFractionOfE1rm,
     regressionLoadFraction: config.painFlag.regressionLoadFraction,
     tooHardLoadFraction: config.checkIn.tooHardLoadFraction,
+    maxRelativeLoadJump: s.maxRelativeLoadJump,
+    maxSets: Math.max(workingSets, config.ladder.maxSets),
+    techniques: config.ladder.techniques,
   }
 }
 
@@ -45,12 +54,19 @@ export type StrengthAction =
   | 'start'
   | 'increaseLoad'
   | 'addReps'
+  | 'ladder'
   | 'deload'
   | 'stallReset'
   | 'lighter'
   | 'regress'
 
-export type StrengthNote = 'rirMissing' | 'lowFeeling' | 'plannedDeload' | 'zeroBaseline'
+export type StrengthNote =
+  | 'rirMissing'
+  | 'lowFeeling'
+  | 'plannedDeload'
+  | 'zeroBaseline'
+  | 'bigJump'
+  | 'heavierEquipment'
 
 export interface StrengthPrescription {
   exerciseId: string
@@ -59,6 +75,8 @@ export interface StrengthPrescription {
   sets: number
   repRange: [number, number]
   targetRir: number
+  technique?: Technique
+  ladderStep?: LadderStep
   regression?: string
   notes: StrengthNote[]
 }
@@ -69,8 +87,12 @@ export interface StrengthInput {
   /** All sessions of the window (any order). */
   windowSessions: Session[]
   currentE1rm: number
-  /** Overrides the e1RM-based starting load when there is no history (e.g. added load on a weighted variant). */
+  /** Overrides the e1RM-based starting load when there is no history (e.g. current kettlebell). */
   startLoadKg?: number
+  /** Loads the athlete can actually use. Default: plates (continuous). */
+  loads?: LoadSet
+  /** Mass moved besides the load (bodyweight for added-load exercises), for jump sizes. */
+  baseKg?: number
   modifier: ProgressionModifier
   programStart: IsoDate
   today: IsoDate
@@ -81,6 +103,7 @@ interface Performance {
   loadKg: number
   sets: SetLog[]
   totalReps: number
+  technique?: Technique
   feeling?: number
 }
 
@@ -96,12 +119,19 @@ function performanceOf(session: Session, exerciseId: string): Performance | unde
     loadKg,
     sets: top,
     totalReps: top.reduce((sum, s) => sum + (s.reps ?? 0), 0),
+    technique: top.find((s) => s.technique !== undefined)?.technique,
     feeling: session.feeling,
   }
 }
 
+const TECHNIQUE_RANK: Record<Technique, number> = { tempo: 1, pause: 2, range: 3 }
+const rank = (t: Technique | undefined) => (t === undefined ? 0 : TECHNIQUE_RANK[t])
+
 function improved(next: Performance, prev: Performance): boolean {
-  return next.loadKg > prev.loadKg || (next.loadKg === prev.loadKg && next.totalReps > prev.totalReps)
+  if (next.loadKg !== prev.loadKg) return next.loadKg > prev.loadKg
+  // Moving up the ladder (harder technique) counts as progress even if reps dip.
+  if (rank(next.technique) !== rank(prev.technique)) return rank(next.technique) > rank(prev.technique)
+  return next.totalReps > prev.totalReps
 }
 
 /**
@@ -124,12 +154,10 @@ export function isStalled(history: Performance[], n: number): boolean {
   return sinceImprovement >= n
 }
 
-function roundDown(value: number, step: number): number {
-  return Math.max(0, Math.floor(value / step + 1e-9) * step)
-}
-
 export function suggestStrength(input: StrengthInput): StrengthPrescription {
   const { exercise, params, windowSessions, currentE1rm, modifier, programStart, today } = input
+  const loads = input.loads ?? 'continuous'
+  const round = (kg: number) => loadAtOrBelow(kg, loads, params.loadIncrementKg)
   const sorted = [...windowSessions].sort((a, b) => (a.date < b.date ? -1 : 1))
   const training = sorted
     .filter((s) => s.kind === 'training')
@@ -148,7 +176,7 @@ export function suggestStrength(input: StrengthInput): StrengthPrescription {
     if (input.startLoadKg !== undefined) {
       return { ...base, action: 'start', loadKg: input.startLoadKg, notes: [] }
     }
-    const loadKg = roundDown(currentE1rm * params.startingLoadFractionOfE1rm, params.loadIncrementKg)
+    const loadKg = round(currentE1rm * params.startingLoadFractionOfE1rm)
     return { ...base, action: 'start', loadKg, notes: currentE1rm <= 0 ? ['zeroBaseline'] : [] }
   }
 
@@ -156,7 +184,7 @@ export function suggestStrength(input: StrengthInput): StrengthPrescription {
     return {
       ...base,
       action: 'regress',
-      loadKg: roundDown(last.loadKg * params.regressionLoadFraction, params.loadIncrementKg),
+      loadKg: round(last.loadKg * params.regressionLoadFraction),
       regression: exercise.regression,
       notes: [],
     }
@@ -179,7 +207,7 @@ export function suggestStrength(input: StrengthInput): StrengthPrescription {
       ...base,
       action: 'deload',
       loadKg: last.loadKg,
-      // Volume deload: fewer sets, same load. Never more sets than normal.
+      // Volume deload: fewer sets, same load, no extra technique. Never more sets than normal.
       sets: Math.max(1, Math.ceil(params.workingSets * params.deloadSetFraction)),
       notes: [...(deloadDue ? (['plannedDeload'] as const) : []), ...(lowFeeling ? (['lowFeeling'] as const) : [])],
     }
@@ -189,7 +217,7 @@ export function suggestStrength(input: StrengthInput): StrengthPrescription {
     return {
       ...base,
       action: 'stallReset',
-      loadKg: roundDown(last.loadKg * (1 - params.stallLoadReduction), params.loadIncrementKg),
+      loadKg: round(last.loadKg * (1 - params.stallLoadReduction)),
       regression: exercise.regression,
       notes: [],
     }
@@ -199,21 +227,56 @@ export function suggestStrength(input: StrengthInput): StrengthPrescription {
     return {
       ...base,
       action: 'lighter',
-      loadKg: roundDown(last.loadKg * params.tooHardLoadFraction, params.loadIncrementKg),
+      loadKg: round(last.loadKg * params.tooHardLoadFraction),
       notes: [],
     }
   }
 
+  // Keep the ladder position reached (sets, technique) while building reps.
+  const current = {
+    ...base,
+    sets: Math.min(params.maxSets, Math.max(params.workingSets, last.sets.length)),
+    technique: last.technique,
+  }
   const [, top] = params.repRange
-  const enoughSets = last.sets.length >= params.workingSets
+  const enoughSets = last.sets.length >= current.sets
   const allAtTop = last.sets.every((s) => (s.reps ?? 0) >= top)
   const rirMissing = last.sets.some((s) => s.rir === undefined)
   const tooClose = last.sets.some((s) => s.rir !== undefined && s.rir < params.minRirToProgress)
   const notes: StrengthNote[] = rirMissing ? ['rirMissing'] : []
 
-  if ((enoughSets && allAtTop && !tooClose) || modifier.forceProgress) {
-    // Load goes up; sets stay the same → never load and volume up together.
-    return { ...base, action: 'increaseLoad', loadKg: last.loadKg + params.loadIncrementKg, notes }
+  if (!((enoughSets && allAtTop && !tooClose) || modifier.forceProgress)) {
+    return { ...current, action: 'addReps', loadKg: last.loadKg, notes }
   }
-  return { ...base, action: 'addReps', loadKg: last.loadKg, notes }
+
+  // Ready to progress: one lever only, so load and volume never rise together.
+  const heavier = nextLoad(last.loadKg, loads, params.loadIncrementKg)
+  // With plates the configured increment already is the chosen jump; fixed weights are checked.
+  const jumpOk =
+    heavier !== undefined &&
+    (loads === 'continuous' ||
+      relativeJump(last.loadKg, heavier, input.baseKg) <= params.maxRelativeLoadJump)
+  if (jumpOk) {
+    return { ...base, action: 'increaseLoad', loadKg: heavier, notes }
+  }
+
+  const move = nextLadderStep(
+    { sets: current.sets, technique: last.technique },
+    { baseSets: params.workingSets, maxSets: params.maxSets, techniques: params.techniques },
+  )
+  if (move.step !== 'nextLoad') {
+    return { ...base, action: 'ladder', ladderStep: move.step, sets: move.sets, technique: move.technique, loadKg: last.loadKg, notes }
+  }
+  if (heavier !== undefined) {
+    // Ladder exhausted: take the big jump, back to plain sets at the bottom of the range.
+    return { ...base, action: 'increaseLoad', ladderStep: 'nextLoad', loadKg: heavier, notes: [...notes, 'bigJump'] }
+  }
+  // Nothing heavier exists: hold at the hardest rung and suggest new equipment or a harder variation.
+  return {
+    ...current,
+    action: 'ladder',
+    ladderStep: 'range',
+    loadKg: last.loadKg,
+    notes: [...notes, 'heavierEquipment'],
+  }
 }

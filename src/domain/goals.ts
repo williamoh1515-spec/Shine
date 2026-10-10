@@ -10,29 +10,55 @@ export interface Projection {
   roundTo: number
 }
 
-export function metricFor(exercise: Exercise): GoalMetric {
+/** Metrics that make sense for an exercise; the first is the default. */
+export function metricsFor(exercise: Exercise): GoalMetric[] {
   switch (exercise.progressionModel) {
+    case 'strength': {
+      const loadType = exercise.loadType ?? 'plates'
+      if (loadType === 'plates') return ['oneRepMaxKg', 'workingLoadKg', 'maxReps']
+      if (loadType === 'bodyweight') return ['maxReps']
+      // Fixed-weight kit: e1RM from a few bells is noisy, track the load used for N reps instead.
+      return ['workingLoadKg', 'maxReps']
+    }
     case 'repsEndurance':
-      return 'maxReps'
-    case 'cycling':
+      return ['maxReps']
+    case 'timed':
+      return ['maxDurationSec', 'workingLoadKg']
     case 'running':
-      return 'distanceM'
-    default:
-      return 'oneRepMaxKg'
+      return ['maxDurationSec', 'distanceM']
+    case 'cycling':
+      return ['distanceM']
+    case 'custom':
+      return ['maxReps', 'maxDurationSec', 'workingLoadKg']
   }
 }
 
+export function metricFor(exercise: Exercise): GoalMetric {
+  return metricsFor(exercise)[0] ?? 'maxReps'
+}
+
+function loadStep(exercise: Exercise, config: ProgressionConfig): number {
+  const loadType = exercise.loadType ?? 'plates'
+  if (exercise.overrides?.loadIncrementKg !== undefined) return exercise.overrides.loadIncrementKg
+  if (loadType !== 'plates') return config.strength.kettlebellStepKg
+  return config.strength.loadIncrementKg[exercise.region ?? 'upper']
+}
+
 export function projectionFor(metric: GoalMetric, exercise: Exercise, config: ProgressionConfig): Projection {
+  const region = exercise.region ?? 'upper'
   switch (metric) {
-    case 'oneRepMaxKg': {
-      const region = exercise.region ?? 'upper'
+    case 'oneRepMaxKg':
+    case 'workingLoadKg':
       return {
         weeklyRate: config.strength.conservativeGainKgPerWeek[region],
-        roundTo: exercise.overrides?.loadIncrementKg ?? config.strength.loadIncrementKg[region],
+        roundTo: loadStep(exercise, config),
       }
-    }
     case 'maxReps':
       return { weeklyRate: config.repsEndurance.conservativeGainRepsPerWeek, roundTo: 1 }
+    case 'maxDurationSec':
+      return exercise.progressionModel === 'running'
+        ? { weeklyRate: config.running.conservativeGainSecPerWeek, roundTo: 60 }
+        : { weeklyRate: config.timed.conservativeGainSecPerWeek, roundTo: config.timed.holdIncrementSec }
     case 'distanceM':
       return { weeklyRate: config.cycling.conservativeGainMetresPerWeek, roundTo: 1000 }
   }
@@ -41,7 +67,9 @@ export function projectionFor(metric: GoalMetric, exercise: Exercise, config: Pr
 /** A modest default target to start from. Rough heuristic, meant to be edited. */
 export const SUGGESTED_TARGET_FACTOR: Record<GoalMetric, number> = {
   oneRepMaxKg: 1.15,
+  workingLoadKg: 1.25,
   maxReps: 1.5,
+  maxDurationSec: 1.3,
   distanceM: 1.5,
 }
 
@@ -86,13 +114,19 @@ export interface NewGoalInput {
   target: number
   startDate: IsoDate
   sessionsPerWeek: number
+  /** Defaults to metricFor(exercise). */
+  metric?: GoalMetric
+  minReps?: number
+  startLoadKg?: number
   demo?: boolean
 }
 
 export function createGoal(input: NewGoalInput, config: ProgressionConfig): Goal {
-  const metric = metricFor(input.exercise)
+  const metric = input.metric ?? metricFor(input.exercise)
   const { weeklyRate, roundTo } = projectionFor(metric, input.exercise, config)
   return {
+    ...(input.minReps !== undefined ? { minReps: input.minReps } : {}),
+    ...(input.startLoadKg !== undefined ? { startLoadKg: input.startLoadKg } : {}),
     id: input.id,
     windowId: input.windowId,
     exerciseId: input.exercise.id,

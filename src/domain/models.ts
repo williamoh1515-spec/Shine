@@ -4,10 +4,55 @@ export type IsoDate = string
 
 export type WindowId = string
 
-export type ProgressionModel = 'strength' | 'repsEndurance' | 'running' | 'cycling' | 'custom'
+export type ProgressionModel =
+  | 'strength'
+  | 'repsEndurance'
+  | 'timed'
+  | 'running'
+  | 'cycling'
+  | 'custom'
 
-/** What a goal measures. Strength goals are a 1RM in kg (tracked via estimated 1RM). */
-export type GoalMetric = 'oneRepMaxKg' | 'maxReps' | 'distanceM'
+/**
+ * What a goal measures.
+ * - oneRepMaxKg: estimated 1RM (plate-loaded lifts)
+ * - workingLoadKg: heaviest load lifted for at least `goal.minReps` reps (fixed-weight kit, added load)
+ * - maxReps: best single set
+ * - maxDurationSec: longest hold / carry / run
+ * - distanceM: longest ride
+ */
+export type GoalMetric = 'oneRepMaxKg' | 'workingLoadKg' | 'maxReps' | 'maxDurationSec' | 'distanceM'
+
+/**
+ * How load is added. Drives which loads exist (see domain/loads.ts).
+ * - plates: near-continuous small jumps (barbell, machines)
+ * - kettlebell: one bell from the owned set
+ * - kettlebellPair: two different owned bells together (carries, split squats)
+ * - addedLoad: a bell hung from a belt, on top of bodyweight (weighted pull-ups/dips)
+ * - bodyweight: no external load
+ */
+export type LoadType = 'plates' | 'kettlebell' | 'kettlebellPair' | 'addedLoad' | 'bodyweight'
+
+/** Body regions an exercise or sport fatigues. Used for recovery rules. */
+export type FatigueTag = 'pull' | 'push' | 'grip' | 'shoulder' | 'legs' | 'posteriorChain' | 'core'
+
+/** Extra difficulty when load can't go up (equipment limit). */
+export type Technique = 'tempo' | 'pause' | 'range'
+
+export interface Equipment {
+  /** Owned kettlebells, kg. */
+  kettlebellsKg: number[]
+  pullUpBar: boolean
+  bands: boolean
+  /** Smallest plate jump available, kg. Undefined = no plates. */
+  plateIncrementKg?: number
+}
+
+export interface Profile {
+  name?: string
+  bodyMassKg?: number
+  heightCm?: number
+  equipment?: Equipment
+}
 
 export interface BodyPart {
   id: string
@@ -22,6 +67,8 @@ export interface TrainingWindow {
   enabled: boolean
   /** Optional grouping inside a window, e.g. Pull / Push / Legs inside Strength. */
   bodyParts: BodyPart[]
+  /** Hidden by the user (built-ins are hidden rather than deleted). */
+  hidden?: boolean
 }
 
 export interface Exercise {
@@ -30,12 +77,19 @@ export interface Exercise {
   progressionModel: ProgressionModel
   /** 'upper' | 'lower' picks the default load jump for strength exercises. */
   region?: 'upper' | 'lower'
+  /** Defaults to 'plates' for strength, 'bodyweight' otherwise. */
+  loadType?: LoadType
+  fatigueTags?: FatigueTag[]
   /** Per-exercise overrides of progression config. */
   overrides?: {
     repRange?: [number, number]
     loadIncrementKg?: number
     workingSets?: number
+    /** Timed exercises: target hold per set before moving up the ladder. */
+    maxHoldSec?: number
   }
+  /** Hidden by the user (built-ins are hidden rather than deleted). */
+  hidden?: boolean
   /** Easier variation suggested on pain or plateau. */
   regression?: string
   /** Supporting exercises added to this exercise's program (e.g. rear-delt work for pull-ups). */
@@ -53,6 +107,8 @@ export interface SetLog {
   distanceM?: number
   /** Reps in reserve. Missing = not logged. */
   rir?: number
+  /** Extra difficulty used on this set (slow eccentric, pause, bigger range). */
+  technique?: Technique
   notes?: string
 }
 
@@ -96,6 +152,10 @@ export interface Goal {
   target: number
   startDate: IsoDate
   sessionsPerWeek: number
+  /** workingLoadKg goals: reps a load must be lifted for to count. */
+  minReps?: number
+  /** Current working load to start the program from (fixed-weight kit). */
+  startLoadKg?: number
   /** Newest last. The last plan is the active one; older ones are history. */
   plans: MilestonePlan[]
   demo?: boolean
