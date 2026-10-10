@@ -20,11 +20,24 @@ export const exercises: Exercise[] = [
   { id: 'band-pull-apart', name: 'Band pull-apart', progressionModel: 'repsEndurance' },
   { id: 'scapular-pull-up', name: 'Scapular pull-up', progressionModel: 'repsEndurance' },
   // Push
-  { id: 'bench-press', name: 'Bench press', progressionModel: 'strength', region: 'upper', regression: 'Dumbbell floor press' },
-  { id: 'overhead-press', name: 'Overhead press', progressionModel: 'strength', region: 'upper', regression: 'Landmine press' },
+  { id: 'bench-press', name: 'Bench press', progressionModel: 'strength', region: 'upper', liftClass: 'horizontalPush', regression: 'Dumbbell floor press' },
+  { id: 'overhead-press', name: 'Overhead press', progressionModel: 'strength', region: 'upper', liftClass: 'verticalPush', regression: 'Landmine press' },
+  {
+    id: 'db-overhead-press',
+    name: 'Dumbbell shoulder press (per dumbbell)',
+    progressionModel: 'strength',
+    region: 'upper',
+    loadType: 'plates',
+    liftClass: 'verticalPush',
+    implementCount: 2,
+    // Dumbbells usually step 1–2 kg each.
+    overrides: { loadIncrementKg: 2, repRange: [6, 10] },
+    regression: 'Seated dumbbell press with back support',
+  },
   { id: 'push-up', name: 'Push-up', progressionModel: 'repsEndurance', regression: 'Incline push-up' },
   // Legs — knee-friendly defaults: ROM/depth progressions before load.
-  { id: 'box-squat', name: 'Box squat', progressionModel: 'strength', region: 'lower', regression: 'Box squat to a higher box' },
+  { id: 'back-squat', name: 'Back squat', progressionModel: 'strength', region: 'lower', liftClass: 'squat', regression: 'Box squat' },
+  { id: 'box-squat', name: 'Box squat', progressionModel: 'strength', region: 'lower', liftClass: 'squat', regression: 'Box squat to a higher box' },
   {
     id: 'split-squat-box',
     name: 'Split squat to a box',
@@ -34,8 +47,9 @@ export const exercises: Exercise[] = [
     regression: 'Split squat with a taller box (shorter range)',
   },
   // Hinge
+  { id: 'deadlift', name: 'Deadlift', progressionModel: 'strength', region: 'lower', liftClass: 'hinge', regression: 'Trap-bar deadlift from blocks' },
   { id: 'romanian-deadlift', name: 'Romanian deadlift', progressionModel: 'strength', region: 'lower', regression: 'Kettlebell RDL' },
-  { id: 'trap-bar-deadlift', name: 'Trap-bar deadlift', progressionModel: 'strength', region: 'lower', regression: 'Trap-bar deadlift from blocks' },
+  { id: 'trap-bar-deadlift', name: 'Trap-bar deadlift', progressionModel: 'strength', region: 'lower', liftClass: 'hinge', regression: 'Trap-bar deadlift from blocks' },
   { id: 'hip-thrust', name: 'Hip thrust', progressionModel: 'strength', region: 'lower', regression: 'Glute bridge' },
   // Core
   { id: 'hanging-knee-raise', name: 'Hanging knee raise', progressionModel: 'repsEndurance', regression: 'Lying leg raise' },
@@ -53,9 +67,9 @@ export const windows: TrainingWindow[] = [
     enabled: true,
     bodyParts: [
       { id: 'pull', title: 'Pull', exerciseIds: ['pull-up', 'weighted-pull-up', 'ring-row', 'face-pull', 'band-pull-apart', 'scapular-pull-up'] },
-      { id: 'push', title: 'Push', exerciseIds: ['bench-press', 'overhead-press', 'push-up'] },
-      { id: 'legs', title: 'Legs', exerciseIds: ['box-squat', 'split-squat-box'] },
-      { id: 'hinge', title: 'Hinge', exerciseIds: ['romanian-deadlift', 'trap-bar-deadlift', 'hip-thrust'] },
+      { id: 'push', title: 'Push', exerciseIds: ['bench-press', 'overhead-press', 'db-overhead-press', 'push-up'] },
+      { id: 'legs', title: 'Legs', exerciseIds: ['back-squat', 'box-squat', 'split-squat-box'] },
+      { id: 'hinge', title: 'Hinge', exerciseIds: ['deadlift', 'romanian-deadlift', 'trap-bar-deadlift', 'hip-thrust'] },
       { id: 'core', title: 'Core', exerciseIds: ['hanging-knee-raise', 'ab-wheel'] },
     ],
   },

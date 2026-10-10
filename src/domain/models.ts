@@ -38,6 +38,9 @@ export type FatigueTag = 'pull' | 'push' | 'grip' | 'shoulder' | 'legs' | 'poste
 /** Extra difficulty when load can't go up (equipment limit). */
 export type Technique = 'tempo' | 'pause' | 'range'
 
+/** Main lift family, used to judge training level from strength relative to bodyweight. */
+export type LiftClass = 'squat' | 'hinge' | 'horizontalPush' | 'verticalPush'
+
 export interface Equipment {
   /** Owned kettlebells, kg. */
   kettlebellsKg: number[]
@@ -79,6 +82,10 @@ export interface Exercise {
   region?: 'upper' | 'lower'
   /** Defaults to 'plates' for strength, 'bodyweight' otherwise. */
   loadType?: LoadType
+  /** Set on the big lifts so strength can be compared with bodyweight standards. */
+  liftClass?: LiftClass
+  /** 2 for dumbbell lifts logged per dumbbell (total moved = 2 × the logged load). Default 1. */
+  implementCount?: 1 | 2
   fatigueTags?: FatigueTag[]
   /** Per-exercise overrides of progression config. */
   overrides?: {
@@ -156,6 +163,8 @@ export interface Goal {
   minReps?: number
   /** Current working load to start the program from (fixed-weight kit). */
   startLoadKg?: number
+  /** Set when the goal was reached and replaced by a new one. Completed goals stay as history. */
+  completedOn?: IsoDate
   /** Newest last. The last plan is the active one; older ones are history. */
   plans: MilestonePlan[]
   demo?: boolean

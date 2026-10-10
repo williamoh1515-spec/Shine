@@ -7,7 +7,7 @@ import { buildDemoData, clearDemo, loadDemo } from './demo'
 import { exportAll, importAll, parseBackup } from './repositories/backup'
 import { addExerciseToWindow, getCatalog, getProfile, saveExercise } from './repositories/catalog'
 import { applyProfileLink, buildLinkFromDevice } from './repositories/profile'
-import { addCheckIn, addSession, listGoals, listSessions } from './repositories/training'
+import { addCheckIn, addSession, listGoals, listSessions, replaceGoal } from './repositories/training'
 import { ensureSeeded as seed } from './seed'
 import type { GoalSeed } from '../config/profile.seed'
 
@@ -147,6 +147,30 @@ describe('database', () => {
     await importAll(backup, other)
     expect((await getCatalog(other)).exercisesById['custom-swing']?.name).toBe('KB swing')
     await other.delete()
+  })
+})
+
+describe('replacing a reached goal', () => {
+  it('keeps the old goal as completed history and starts the next one', async () => {
+    await ensureSeeded('2026-10-10', database)
+    const [old] = await listGoals(database)
+    const next = { ...old!, id: 'goal-next', title: '32 pull-ups', baseline: 25, target: 32, completedOn: undefined }
+    await replaceGoal(old!, next, '2026-12-01', database)
+    const goals = await listGoals(database)
+    expect(goals.find((g) => g.id === old!.id)?.completedOn).toBe('2026-12-01')
+    expect(goals.find((g) => g.id === 'goal-next')?.completedOn).toBeUndefined()
+  })
+
+  it('does not re-plan completed goals when sessions are logged', async () => {
+    await ensureSeeded('2026-10-10', database)
+    const [old] = await listGoals(database)
+    await database.goals.put({ ...old!, completedOn: '2026-10-11' })
+    await addSession(
+      { date: '2026-10-12', windowId: 'strength', kind: 'test', setLogs: [{ exerciseId: 'pull-up', reps: 16 }] },
+      '2026-10-12',
+      database,
+    )
+    expect((await database.goals.get(old!.id))?.plans).toHaveLength(1)
   })
 })
 

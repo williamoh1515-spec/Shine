@@ -4,6 +4,7 @@ import type {
   Exercise,
   FatigueTag,
   GoalMetric,
+  LiftClass,
   LoadType,
   Profile,
   ProgressionModel,
@@ -128,6 +129,7 @@ function id(v: unknown, field: string): string {
 
 const MODELS: readonly ProgressionModel[] = ['strength', 'repsEndurance', 'timed', 'running', 'cycling', 'custom']
 const LOAD_TYPES: readonly LoadType[] = ['plates', 'kettlebell', 'kettlebellPair', 'addedLoad', 'bodyweight']
+const LIFT_CLASSES: readonly LiftClass[] = ['squat', 'hinge', 'horizontalPush', 'verticalPush']
 const TAGS: readonly FatigueTag[] = ['pull', 'push', 'grip', 'shoulder', 'legs', 'posteriorChain', 'core']
 const METRICS: readonly GoalMetric[] = ['oneRepMaxKg', 'workingLoadKg', 'maxReps', 'maxDurationSec', 'distanceM']
 
@@ -166,6 +168,8 @@ function parseExercise(v: unknown): Exercise {
   }
   if (v.region !== undefined) exercise.region = oneOf(v.region, ['upper', 'lower'] as const, 'region')
   if (v.loadType !== undefined) exercise.loadType = oneOf(v.loadType, LOAD_TYPES, 'load type')
+  if (v.liftClass !== undefined) exercise.liftClass = oneOf(v.liftClass, LIFT_CLASSES, 'lift class')
+  if (v.implementCount !== undefined) exercise.implementCount = v.implementCount === 2 ? 2 : 1
   if (v.fatigueTags !== undefined) {
     exercise.fatigueTags = list(v.fatigueTags, 'fatigue tags', TAGS.length).map((t) => oneOf(t, TAGS, 'fatigue tag'))
   }

@@ -97,6 +97,37 @@ export const progressionConfig = {
     conservativeGainMetresPerWeek: 2000,
   },
 
+  // Natural pace of progress, used to suggest realistic-but-pushing goals. HEURISTICS from
+  // coaching practice, not study values: beginners can add load nearly every week, intermediates
+  // every one to two weeks, advanced lifters every few weeks (e.g. RP Strength's progression
+  // guidance); strength-standards tables (StrengthLevel, StrengthLog, etc.) are built from
+  // user-logged lifts, disagree with each other by ~0.25× bodyweight, and ignore age, limb length
+  // and training history. Treat all numbers as editable estimates.
+  naturalProgress: {
+    // Strength relative to bodyweight (e1RM ÷ bodyweight) at which a male lifter counts as
+    // intermediate / advanced for each main lift. Below "intermediate" = novice.
+    standards: {
+      squat: { intermediate: 1.5, advanced: 2.0 },
+      hinge: { intermediate: 2.0, advanced: 2.5 },
+      horizontalPush: { intermediate: 1.0, advanced: 1.5 },
+      verticalPush: { intermediate: 0.65, advanced: 1.0 },
+    },
+    // Share of current strength gained per month at each level (linear, not compounding).
+    monthlyGain: { novice: 0.06, intermediate: 0.02, advanced: 0.008 },
+    // Level assumed when bodyweight or lift class is unknown: the middle one, neither too
+    // timid nor reckless.
+    defaultLevel: 'intermediate',
+    // Goals aim at this many weeks of natural progress (about one training block).
+    horizonWeeks: 12,
+    // Average weeks per month, to turn the monthly gain into the horizon's gain.
+    weeksPerMonth: 4.345,
+    // For non-load metrics when a goal is reached: next target = current × factor, at least +step.
+    repsFactor: 1.25,
+    minRepsStep: 2,
+    durationFactor: 1.2,
+    distanceFactor: 1.2,
+  },
+
   milestones: {
     // Share of the baseline→goal gap for each milestone.
     fractions: [0.25, 0.5, 0.75, 0.9, 1],

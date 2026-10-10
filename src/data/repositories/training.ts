@@ -26,6 +26,19 @@ export async function deleteGoal(goalId: string, database: ShineDb = db): Promis
   await database.goals.delete(goalId)
 }
 
+/** Marks a reached goal as completed (kept as history) and starts its successor, atomically. */
+export async function replaceGoal(
+  completed: Goal,
+  next: Goal,
+  today: IsoDate,
+  database: ShineDb = db,
+): Promise<void> {
+  await database.transaction('rw', database.goals, async () => {
+    await database.goals.put({ ...completed, completedOn: today })
+    await database.goals.put(next)
+  })
+}
+
 /** Re-plans the window's goals when progress diverged (or always, when forced). */
 async function replanWindow(
   windowId: WindowId,
@@ -37,6 +50,7 @@ async function replanWindow(
   const sessions = await database.sessions.where('windowId').equals(windowId).toArray()
   const { exercisesById } = await getCatalog(database)
   for (const goal of goals) {
+    if (goal.completedOn !== undefined) continue
     const exercise = exercisesById[goal.exerciseId]
     if (exercise === undefined) continue
     const updated = maybeReplan(goal, exercise, sessions, today, progressionConfig, force)
