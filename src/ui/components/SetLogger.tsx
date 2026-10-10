@@ -1,24 +1,26 @@
 import { useState } from 'react'
-import { exercisesById } from '../../config/windows.config'
-import type { IsoDate, Session, SessionKind, SetLog } from '../../domain/models'
-import { exerciseName } from '../format'
+import type { Exercise, IsoDate, Session, SessionKind, SetLog, Technique } from '../../domain/models'
+import { exerciseName, techniqueText } from '../format'
 
 interface Row {
   exerciseId: string
   load: string
   reps: string
   rir: string
+  seconds: string
   minutes: string
   km: string
+  technique: '' | Technique
 }
 
 interface Props {
   windowId: string
   /** Exercises offered in the picker; the first is the default. */
   exerciseIds: string[]
+  exercises: Record<string, Exercise>
   today: IsoDate
   /** Pre-fill from this week's program. */
-  suggestion?: { loadKg?: number; reps?: number; sets?: number }
+  suggestion?: { loadKg?: number; reps?: number; sets?: number; seconds?: number; technique?: Technique }
   onSave: (session: Omit<Session, 'id'>) => Promise<void>
 }
 
@@ -27,8 +29,10 @@ const emptyRow = (exerciseId: string, s?: Props['suggestion']): Row => ({
   load: s?.loadKg !== undefined && s.loadKg > 0 ? String(s.loadKg) : '',
   reps: s?.reps !== undefined ? String(s.reps) : '',
   rir: '',
+  seconds: s?.seconds !== undefined ? String(s.seconds) : '',
   minutes: '',
   km: '',
+  technique: s?.technique ?? '',
 })
 
 function parse(value: string): number | undefined {
@@ -42,18 +46,21 @@ function toSetLog(row: Row): SetLog | undefined {
   const reps = parse(row.reps)
   const load = parse(row.load)
   const rir = parse(row.rir)
+  const seconds = parse(row.seconds)
   const minutes = parse(row.minutes)
   const km = parse(row.km)
   if (reps !== undefined) log.reps = Math.round(reps)
   if (load !== undefined) log.loadKg = load
   if (rir !== undefined) log.rir = Math.round(rir)
+  if (seconds !== undefined) log.durationSec = Math.round(seconds)
   if (minutes !== undefined) log.durationSec = Math.round(minutes * 60)
   if (km !== undefined) log.distanceM = Math.round(km * 1000)
+  if (row.technique !== '') log.technique = row.technique
   const hasData = log.reps !== undefined || log.durationSec !== undefined || log.distanceM !== undefined
   return hasData ? log : undefined
 }
 
-export function SetLogger({ windowId, exerciseIds, today, suggestion, onSave }: Props) {
+export function SetLogger({ windowId, exerciseIds, exercises, today, suggestion, onSave }: Props) {
   const first = exerciseIds[0] ?? ''
   const initialRows = Array.from({ length: Math.max(1, suggestion?.sets ?? 1) }, () => emptyRow(first, suggestion))
   const [rows, setRows] = useState<Row[]>(initialRows)
@@ -104,8 +111,11 @@ export function SetLogger({ windowId, exerciseIds, today, suggestion, onSave }: 
       </div>
 
       {rows.map((row, i) => {
-        const model = exercisesById[row.exerciseId]?.progressionModel
+        const exercise = exercises[row.exerciseId]
+        const model = exercise?.progressionModel
+        const loadType = exercise?.loadType ?? (model === 'strength' ? 'plates' : 'bodyweight')
         const isRide = model === 'cycling' || model === 'running'
+        const showLoad = loadType !== 'bodyweight' && (model === 'strength' || model === 'timed' || model === 'custom')
         return (
           <fieldset key={i} className="set-row">
             <legend className="small muted">Set {i + 1}</legend>
@@ -117,12 +127,25 @@ export function SetLogger({ windowId, exerciseIds, today, suggestion, onSave }: 
               >
                 {exerciseIds.map((id) => (
                   <option key={id} value={id}>
-                    {exerciseName(id)}
+                    {exerciseName(id, exercises)}
                   </option>
                 ))}
               </select>
             )}
-            {isRide ? (
+            {model === 'timed' ? (
+              <div className="row">
+                {showLoad && (
+                  <label className="grow">
+                    kg
+                    <input inputMode="decimal" value={row.load} onChange={(e) => update(i, { load: e.target.value })} />
+                  </label>
+                )}
+                <label className="grow">
+                  Seconds
+                  <input inputMode="numeric" value={row.seconds} onChange={(e) => update(i, { seconds: e.target.value })} />
+                </label>
+              </div>
+            ) : isRide ? (
               <div className="row">
                 <label className="grow">
                   Minutes
@@ -135,9 +158,9 @@ export function SetLogger({ windowId, exerciseIds, today, suggestion, onSave }: 
               </div>
             ) : (
               <div className="row">
-                {model === 'strength' && (
+                {showLoad && (
                   <label className="grow">
-                    kg
+                    {loadType === 'addedLoad' ? '+kg' : 'kg'}
                     <input inputMode="decimal" value={row.load} onChange={(e) => update(i, { load: e.target.value })} />
                   </label>
                 )}
@@ -155,6 +178,22 @@ export function SetLogger({ windowId, exerciseIds, today, suggestion, onSave }: 
                   />
                 </label>
               </div>
+            )}
+            {model === 'strength' && (
+              <label>
+                Made harder with
+                <select
+                  value={row.technique}
+                  onChange={(e) => update(i, { technique: e.target.value as Row['technique'] })}
+                >
+                  <option value="">Nothing extra</option>
+                  {(Object.keys(techniqueText) as Technique[]).map((t) => (
+                    <option key={t} value={t}>
+                      {techniqueText[t]}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
             {rows.length > 1 && (
               <button className="ghost small" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>

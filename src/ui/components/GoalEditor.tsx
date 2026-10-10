@@ -1,78 +1,105 @@
 import { useMemo, useState } from 'react'
 import { progressionConfig } from '../../config/progression.config'
-import { exercisesById } from '../../config/windows.config'
-import { createGoal, metricFor, projectionFor, suggestTarget } from '../../domain/goals'
-import type { Goal, GoalMetric } from '../../domain/models'
+import { createGoal, metricsFor, projectionFor, suggestTarget } from '../../domain/goals'
+import type { Exercise, Goal, GoalMetric } from '../../domain/models'
 import { newId } from '../../data/db'
-import { formatDate, formatMetric } from '../format'
+import { formatDate, formatMetric, metricInputUnit, metricOptionText } from '../format'
 import { Sheet } from './Sheet'
 
 interface Props {
   windowId: string
-  exerciseId: string
+  exercise: Exercise
   today: string
   onSave: (goal: Goal) => Promise<void>
   onClose: () => void
 }
 
-const unitFor = { oneRepMaxKg: 'kg (1RM)', maxReps: 'reps', distanceM: 'km' } as const
+const num = (s: string) => Number(s.replace(',', '.'))
+const valid = (s: string) => s.trim() !== '' && Number.isFinite(num(s))
 
-// Distances are typed in km but stored in metres.
-const toInput = (metric: GoalMetric, v: number) => (metric === 'distanceM' ? v / 1000 : v)
-const fromInput = (metric: GoalMetric, v: number) => (metric === 'distanceM' ? v * 1000 : v)
-
-export function GoalEditor({ windowId, exerciseId, today, onSave, onClose }: Props) {
-  const exercise = exercisesById[exerciseId]
-  const metric = exercise ? metricFor(exercise) : 'oneRepMaxKg'
+export function GoalEditor({ windowId, exercise, today, onSave, onClose }: Props) {
+  const metrics = metricsFor(exercise)
+  const [metric, setMetric] = useState<GoalMetric>(metrics[0] ?? 'maxReps')
+  const unit = metricInputUnit(metric, exercise.progressionModel)
+  const usesLoad = exercise.loadType !== undefined && exercise.loadType !== 'bodyweight'
 
   const [baseline, setBaseline] = useState('')
   const [target, setTarget] = useState('')
+  const [minReps, setMinReps] = useState(String(exercise.overrides?.repRange?.[0] ?? 5))
+  const [startLoad, setStartLoad] = useState('')
   const [sessionsPerWeek, setSessionsPerWeek] = useState('2')
   const [fromTest, setFromTest] = useState(true)
 
   const preview = useMemo(() => {
-    const b = Number(baseline.replace(',', '.'))
-    const t = Number(target.replace(',', '.'))
-    if (!exercise || baseline === '' || target === '' || !Number.isFinite(b) || !Number.isFinite(t)) return undefined
+    if (!valid(baseline) || !valid(target)) return undefined
+    const t = num(target) * unit.factor
     return createGoal(
       {
         id: newId('goal'),
         windowId,
         exercise,
-        title: `${exercise.name}: ${formatMetric(metric, fromInput(metric, t))}`,
-        baseline: fromInput(metric, b),
+        metric,
+        title: `${exercise.name}: ${formatMetric(metric, t)}${metric === 'workingLoadKg' ? ` × ${minReps}` : ''}`,
+        baseline: num(baseline) * unit.factor,
         baselineSource: fromTest ? 'test' : 'manual',
-        target: fromInput(metric, t),
+        target: t,
         startDate: today,
-        sessionsPerWeek: Math.max(1, Math.round(Number(sessionsPerWeek) || 2)),
+        sessionsPerWeek: Math.min(7, Math.max(1, Math.round(num(sessionsPerWeek) || 2))),
+        ...(metric === 'workingLoadKg' && valid(minReps) ? { minReps: Math.round(num(minReps)) } : {}),
+        ...(usesLoad && valid(startLoad) ? { startLoadKg: num(startLoad) } : {}),
       },
       progressionConfig,
     )
-  }, [baseline, target, sessionsPerWeek, fromTest, exercise, windowId, today, metric])
-
-  if (!exercise) return null
+  }, [baseline, target, sessionsPerWeek, fromTest, exercise, windowId, today, metric, minReps, startLoad, unit.factor, usesLoad])
 
   const suggest = () => {
-    const b = Number(baseline.replace(',', '.'))
-    if (!Number.isFinite(b)) return
+    if (!valid(baseline)) return
     const { roundTo } = projectionFor(metric, exercise, progressionConfig)
-    setTarget(String(toInput(metric, suggestTarget(metric, fromInput(metric, b), roundTo))))
+    setTarget(String(suggestTarget(metric, num(baseline) * unit.factor, roundTo) / unit.factor))
   }
 
   return (
     <Sheet title={`Goal: ${exercise.name}`} onClose={onClose}>
+      {metrics.length > 1 && (
+        <label>
+          What to improve
+          <select value={metric} onChange={(e) => setMetric(e.target.value as GoalMetric)}>
+            {metrics.map((m) => (
+              <option key={m} value={m}>
+                {metricOptionText[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <div className="row">
         <label className="grow">
-          Where you are now ({unitFor[metric]})
+          Now ({unit.label})
           <input inputMode="decimal" value={baseline} onChange={(e) => setBaseline(e.target.value)} />
         </label>
         <label className="grow">
-          Goal ({unitFor[metric]})
+          Goal ({unit.label})
           <input inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} />
         </label>
       </div>
+      {(metric === 'workingLoadKg' || usesLoad) && (
+        <div className="row">
+          {metric === 'workingLoadKg' && (
+            <label className="grow">
+              For at least (reps)
+              <input inputMode="numeric" value={minReps} onChange={(e) => setMinReps(e.target.value)} />
+            </label>
+          )}
+          {usesLoad && (
+            <label className="grow">
+              Current working load (kg)
+              <input inputMode="decimal" value={startLoad} onChange={(e) => setStartLoad(e.target.value)} placeholder="e.g. 16" />
+            </label>
+          )}
+        </div>
+      )}
       <div className="row wrap">
-        <button onClick={suggest} disabled={baseline === ''}>
+        <button onClick={suggest} disabled={!valid(baseline)}>
           💡 Suggest a goal
         </button>
         <label className="grow">

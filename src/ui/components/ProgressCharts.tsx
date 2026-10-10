@@ -36,27 +36,47 @@ const tooltipStyle = {
   labelStyle: { color: 'var(--text-2)' },
 } as const
 
-/** Per-session volume for the goal's exercise: total reps, or ride minutes. */
+/** Time-based goals chart total time per session; others chart total reps. */
+const isTimeBased = (goal: Goal) => goal.metric === 'distanceM' || goal.metric === 'maxDurationSec'
+
+/** Long durations (runs) in minutes, short ones (holds) in seconds. */
+const inMinutes = (goal: Goal) => goal.metric === 'distanceM' || goal.target >= 600
+
+/** Per-session volume for the goal's exercise: total reps, or total time. */
 function volumePoints(goal: Goal, sessions: Session[]) {
-  const isRide = goal.metric === 'distanceM'
+  const timeDivisor = inMinutes(goal) ? 60 : 1
   return sessions
     .filter((s) => s.date >= goal.startDate)
     .map((s) => {
       const logs = s.setLogs.filter((l) => l.exerciseId === goal.exerciseId)
-      const value = isRide
-        ? logs.reduce((sum, l) => sum + (l.durationSec ?? 0), 0) / 60
+      const value = isTimeBased(goal)
+        ? logs.reduce((sum, l) => sum + (l.durationSec ?? 0), 0) / timeDivisor
         : logs.reduce((sum, l) => sum + (l.reps ?? 0), 0)
       return { date: s.date, label: formatDate(s.date), value: Math.round(value) }
     })
     .filter((p) => p.value > 0)
 }
 
+function lineScale(goal: Goal): { scale: number; unit: string } {
+  switch (goal.metric) {
+    case 'distanceM':
+      return { scale: 1 / 1000, unit: 'km' }
+    case 'maxDurationSec':
+      return inMinutes(goal) ? { scale: 1 / 60, unit: 'min' } : { scale: 1, unit: 's' }
+    case 'maxReps':
+      return { scale: 1, unit: 'reps' }
+    case 'oneRepMaxKg':
+    case 'workingLoadKg':
+      return { scale: 1, unit: 'kg' }
+  }
+}
+
 export function ProgressCharts({ goal, history, sessions }: Props) {
-  const isRide = goal.metric === 'distanceM'
-  const scale = isRide ? 1 / 1000 : 1
+  const isRide = isTimeBased(goal)
+  const { scale, unit } = lineScale(goal)
+  const timeUnit = inMinutes(goal) ? 'min' : 's'
   const line = history.map((p) => ({ label: formatDate(p.date), value: Math.round(p.value * scale * 10) / 10 }))
   const volume = volumePoints(goal, sessions)
-  const unit = goal.metric === 'oneRepMaxKg' ? 'kg' : goal.metric === 'maxReps' ? 'reps' : 'km'
 
   if (line.length === 0 && volume.length === 0) {
     return (
@@ -103,8 +123,8 @@ export function ProgressCharts({ goal, history, sessions }: Props) {
       </div>
 
       <div>
-        <h3>{isRide ? 'Ride time per session' : 'Total reps per session'}</h3>
-        <p className="small muted">{isRide ? 'Minutes' : 'All sets of this exercise'}</p>
+        <h3>{isRide ? 'Time per session' : 'Total reps per session'}</h3>
+        <p className="small muted">{isRide ? (timeUnit === 'min' ? 'Minutes' : 'Seconds, all sets') : 'All sets of this exercise'}</p>
       </div>
       <div style={{ height: 160 }}>
         <ResponsiveContainer>
@@ -115,7 +135,7 @@ export function ProgressCharts({ goal, history, sessions }: Props) {
             <Tooltip
               {...tooltipStyle}
               cursor={{ fill: 'var(--surface-2)' }}
-              formatter={(v) => [`${String(v)} ${isRide ? 'min' : 'reps'}`, isRide ? 'Time' : 'Reps']}
+              formatter={(v) => [`${String(v)} ${isRide ? timeUnit : 'reps'}`, isRide ? 'Time' : 'Reps']}
             />
             <Bar dataKey="value" fill="var(--series-1)" radius={[4, 4, 0, 0]} maxBarSize={28} isAnimationActive={false} />
           </BarChart>

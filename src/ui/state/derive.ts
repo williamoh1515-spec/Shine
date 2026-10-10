@@ -1,6 +1,6 @@
 import { achievements } from '../../config/achievements.config'
 import { gamificationConfig, progressionConfig } from '../../config/progression.config'
-import { exercisesById, windows } from '../../config/windows.config'
+import type { Catalog } from '../../domain/catalog'
 import {
   computeXp,
   evaluateAchievements,
@@ -14,7 +14,7 @@ import {
 } from '../../domain/gamification'
 import { currentGoalValue, goalHistory, goalProgress, type ValuePoint } from '../../domain/metrics'
 import { milestoneStatuses, type MilestoneStatus } from '../../domain/milestones'
-import type { CheckIn, Goal, IsoDate, Session, TrainingWindow, UnlockedAchievement, WindowId } from '../../domain/models'
+import type { CheckIn, Goal, IsoDate, Profile, Session, TrainingWindow, UnlockedAchievement, WindowId } from '../../domain/models'
 import { buildWeekProgram, type WeekProgram } from '../../domain/program'
 
 /** Planned sessions/week for a window with no goals yet. Assumption for the prototype. */
@@ -49,6 +49,8 @@ export interface AppState {
   unlocked: UnlockedAchievement[]
   milestonesHit: number
   hasDemo: boolean
+  catalog: Catalog
+  profile: Profile
 }
 
 export function deriveAppState(
@@ -56,7 +58,10 @@ export function deriveAppState(
   sessions: Session[],
   checkIns: CheckIn[],
   today: IsoDate,
+  catalog: Catalog,
+  profile: Profile,
 ): AppState {
+  const { windows, exercisesById } = catalog
   const goalViewsFor = (windowId: WindowId): GoalView[] => {
     const windowSessions = sessions.filter((s) => s.windowId === windowId)
     return goals
@@ -71,15 +76,14 @@ export function deriveAppState(
           history,
           milestones: milestoneStatuses(goal, history),
           program: buildWeekProgram({
-            goal, exercises: exercisesById, windowSessions, checkIns, today, config: progressionConfig,
+            goal, exercises: exercisesById, windowSessions, checkIns, today, config: progressionConfig, profile,
           }),
         }
       })
   }
 
   const visible = windows.filter((w) => w.enabled || goals.some((g) => g.windowId === w.id))
-  // Running has no progression model yet, so it isn't offered.
-  const dormantWindows = windows.filter((w) => !visible.includes(w) && w.id !== 'running')
+  const dormantWindows = windows.filter((w) => !visible.includes(w))
 
   const plannedPerWeek: Record<WindowId, number> = {}
   for (const w of visible) {
@@ -128,5 +132,7 @@ export function deriveAppState(
     unlocked,
     milestonesHit: milestoneHitDates.length,
     hasDemo: goals.some((g) => g.demo) || sessions.some((s) => s.demo),
+    catalog,
+    profile,
   }
 }

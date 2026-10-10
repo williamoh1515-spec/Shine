@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { exercisesById } from '../../config/windows.config'
 import { addCheckIn, addSession, deleteGoal, deleteSession, saveGoal } from '../../data/repositories/training'
 import type { WeekProgram } from '../../domain/program'
 import { CheckInSheet } from '../components/CheckInSheet'
@@ -9,7 +8,7 @@ import { ProgramCard } from '../components/ProgramCard'
 import { ProgressCharts } from '../components/ProgressCharts'
 import { ProgressRing } from '../components/ProgressRing'
 import { SetLogger } from '../components/SetLogger'
-import { exerciseName, formatDate, formatMetric } from '../format'
+import { exerciseName, formatDate, formatDuration, formatMetric } from '../format'
 import type { AppState } from '../state/derive'
 
 interface Props {
@@ -22,16 +21,22 @@ interface Props {
 function suggestionFrom(program: WeekProgram | undefined) {
   const item = program?.item
   if (item?.kind === 'strength') {
-    return { loadKg: item.prescription.loadKg, reps: item.prescription.repRange[0], sets: item.prescription.sets }
+    const p = item.prescription
+    return { loadKg: p.loadKg, reps: p.repRange[0], sets: p.sets, technique: p.technique }
   }
   if (item?.kind === 'reps' && item.prescription.action !== 'test') {
     return { reps: item.prescription.reps, sets: item.prescription.sets }
+  }
+  if (item?.kind === 'timed') {
+    const p = item.prescription
+    return { loadKg: p.loadKg, seconds: p.seconds, sets: p.sets }
   }
   return undefined
 }
 
 export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
   const [sheet, setSheet] = useState<'checkIn' | 'goal'>()
+  const { exercisesById } = state.catalog
   const exercise = exercisesById[exerciseId]
   const view = state.windows.find((w) => w.window.id === windowId)
   const goalView = view?.goals.find((g) => g.goal.exerciseId === exerciseId)
@@ -84,7 +89,7 @@ export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
         </section>
       )}
 
-      {goalView && <ProgramCard program={goalView.program} metric={goalView.goal.metric} />}
+      {goalView && <ProgramCard program={goalView.program} metric={goalView.goal.metric} names={exercisesById} />}
 
       <section className="card" aria-label="Log a session">
         <h3>Log a session</h3>
@@ -92,6 +97,7 @@ export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
           key={goalView?.program.weekOf ?? 'none'}
           windowId={windowId}
           exerciseIds={loggable}
+          exercises={exercisesById}
           today={today}
           suggestion={suggestionFrom(goalView?.program)}
           onSave={async (s) => {
@@ -118,11 +124,14 @@ export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
                     <br />
                     <span className="muted">
                       {s.setLogs
-                        .map((l) =>
-                          l.distanceM !== undefined
-                            ? `${(l.distanceM / 1000).toFixed(1)} km`
-                            : `${l.loadKg ? `${l.loadKg}kg×` : ''}${l.reps ?? ''}${l.exerciseId !== exerciseId ? ` ${exerciseName(l.exerciseId)}` : ''}`,
-                        )
+                        .map((l) => {
+                          const other = l.exerciseId !== exerciseId ? ` ${exerciseName(l.exerciseId, exercisesById)}` : ''
+                          if (l.distanceM !== undefined) return `${(l.distanceM / 1000).toFixed(1)} km`
+                          if (l.durationSec !== undefined) {
+                            return `${l.loadKg ? `${l.loadKg}kg ` : ''}${formatDuration(l.durationSec)}${other}`
+                          }
+                          return `${l.loadKg ? `${l.loadKg}kg×` : ''}${l.reps ?? ''}${l.technique ? '*' : ''}${other}`
+                        })
                         .join(' · ')}
                     </span>
                   </span>
@@ -150,10 +159,10 @@ export function ExercisePanel({ state, windowId, exerciseId, today }: Props) {
           onClose={() => setSheet(undefined)}
         />
       )}
-      {sheet === 'goal' && (
+      {sheet === 'goal' && exercise && (
         <GoalEditor
           windowId={windowId}
-          exerciseId={exerciseId}
+          exercise={exercise}
           today={today}
           onSave={saveGoal}
           onClose={() => setSheet(undefined)}

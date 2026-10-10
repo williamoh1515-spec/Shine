@@ -1,15 +1,18 @@
 import { useState } from 'react'
 import { clearDemo, loadDemo } from '../../data/demo'
 import { exportAll, importAll, parseBackup } from '../../data/repositories/backup'
-import { profile } from '../../config/profile.seed'
+import { saveWindow } from '../../data/repositories/catalog'
+import { ProfileCard } from '../components/ProfileCard'
+import type { AppState } from '../state/derive'
 
 interface Props {
   today: string
-  hasDemo: boolean
+  state: AppState
   navigate: (hash: string) => void
 }
 
-export function Settings({ today, hasDemo, navigate }: Props) {
+export function Settings({ today, state, navigate }: Props) {
+  const { hasDemo } = state
   const [message, setMessage] = useState('')
 
   const download = async () => {
@@ -44,12 +47,27 @@ export function Settings({ today, hasDemo, navigate }: Props) {
         <h1 className="grow">Settings</h1>
       </header>
 
-      {profile.bodyMassKg !== undefined && profile.heightCm !== undefined && (
+      <ProfileCard key={JSON.stringify(state.profile)} profile={state.profile} />
+
+      <section className="card">
+        <h3>Share a profile</h3>
+        <p className="small muted">Create a link that sets up the app for someone else (or for you on another device).</p>
+        <button onClick={() => navigate('#/share')}>🔗 Create a profile link</button>
+      </section>
+
+      {state.catalog.hiddenWindows.length > 0 && (
         <section className="card">
-          <h3>Profile</h3>
-          <p className="small">
-            {profile.bodyMassKg} kg · {profile.heightCm} cm <span className="muted">(from profile.local.ts)</span>
-          </p>
+          <h3>Hidden windows</h3>
+          {state.catalog.hiddenWindows.map((w) => (
+            <div key={w.id} className="row spread">
+              <span>
+                {w.icon} {w.title}
+              </span>
+              <button className="small" onClick={() => void saveWindow({ ...w, hidden: false })}>
+                Show again
+              </button>
+            </div>
+          ))}
         </section>
       )}
 

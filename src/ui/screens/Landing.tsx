@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { clearDemo, loadDemo } from '../../data/demo'
 import { weekStart } from '../../domain/dates'
 import { AchievementGrid } from '../components/AchievementGrid'
 import { ProgressRing } from '../components/ProgressRing'
+import { WindowEditor } from '../components/WindowEditor'
 import { formatMetric } from '../format'
 import type { AppState } from '../state/derive'
 
@@ -15,6 +17,7 @@ export function Landing({ state, today, navigate }: Props) {
   const { level, streak } = state
   const weekDone = Math.min(streak.thisWeekSessions, streak.target)
   const monday = weekStart(today)
+  const [creating, setCreating] = useState(false)
 
   return (
     <div className="stack">
@@ -105,7 +108,21 @@ export function Landing({ state, today, navigate }: Props) {
             <span className="grow">+ Start a {w.title.toLowerCase()} goal</span>
           </button>
         ))}
+        <button className="list-button" onClick={() => setCreating(true)}>
+          <span aria-hidden="true">➕</span>
+          <span className="grow">New window (a sport or training area)</span>
+        </button>
       </section>
+      {creating && (
+        <WindowEditor
+          takenIds={new Set(state.catalog.windowsForEditing.map((w) => w.id))}
+          onClose={() => setCreating(false)}
+          onCreated={(id) => {
+            setCreating(false)
+            navigate(`#/w/${id}`)
+          }}
+        />
+      )}
 
       <AchievementGrid unlocked={state.unlocked} />
     </div>

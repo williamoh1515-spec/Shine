@@ -1,18 +1,28 @@
-import { exercisesById } from '../config/windows.config'
 import type { ProgressionModifier } from '../domain/checkIn'
-import type { GoalMetric, IssueType, MilestonePlan } from '../domain/models'
+import type { Exercise, FatigueTag, GoalMetric, IssueType, LoadType, MilestonePlan, ProgressionModel, Technique } from '../domain/models'
 import type { StrengthAction, StrengthNote } from '../domain/progression/strength'
 
 // Display formatting lives in the UI layer. Storage stays kg / metres / seconds.
 
 const oneDecimal = (n: number) => (Math.round(n * 10) / 10).toString()
 
+/** 95 → "1:35", 1800 → "30 min", 1830 → "30:30". */
+export function formatDuration(sec: number): string {
+  const s = Math.round(sec)
+  if (s < 600) return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+  if (s % 60 === 0) return `${s / 60} min`
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
 export function formatMetric(metric: GoalMetric, value: number): string {
   switch (metric) {
     case 'oneRepMaxKg':
+    case 'workingLoadKg':
       return `${oneDecimal(value)} kg`
     case 'maxReps':
       return `${Math.round(value)} reps`
+    case 'maxDurationSec':
+      return value < 600 ? `${Math.round(value)} s` : formatDuration(value)
     case 'distanceM':
       return `${oneDecimal(value / 1000)} km`
   }
@@ -22,11 +32,72 @@ export function metricLabel(metric: GoalMetric): string {
   switch (metric) {
     case 'oneRepMaxKg':
       return 'Estimated 1RM'
+    case 'workingLoadKg':
+      return 'Working load'
     case 'maxReps':
       return 'Best set (reps)'
+    case 'maxDurationSec':
+      return 'Longest (time)'
     case 'distanceM':
-      return 'Ride distance'
+      return 'Distance'
   }
+}
+
+/** Unit the user types for a metric; duration is seconds for holds, minutes for runs. */
+export function metricInputUnit(metric: GoalMetric, model: ProgressionModel | undefined): { label: string; factor: number } {
+  switch (metric) {
+    case 'distanceM':
+      return { label: 'km', factor: 1000 }
+    case 'maxDurationSec':
+      return model === 'running' ? { label: 'min', factor: 60 } : { label: 'seconds', factor: 1 }
+    case 'maxReps':
+      return { label: 'reps', factor: 1 }
+    case 'oneRepMaxKg':
+      return { label: 'kg (est. 1RM)', factor: 1 }
+    case 'workingLoadKg':
+      return { label: 'kg', factor: 1 }
+  }
+}
+
+export const metricOptionText: Record<GoalMetric, string> = {
+  oneRepMaxKg: 'Estimated 1RM (kg)',
+  workingLoadKg: 'Load for N reps (kg)',
+  maxReps: 'Max reps in a set',
+  maxDurationSec: 'Longest time',
+  distanceM: 'Longest distance',
+}
+
+export const modelText: Record<ProgressionModel, string> = {
+  strength: 'Strength (sets × reps with load)',
+  repsEndurance: 'Max reps (bodyweight)',
+  timed: 'Timed hold / carry',
+  running: 'Running (easy, by time)',
+  cycling: 'Cycling',
+  custom: 'Other',
+}
+
+export const loadTypeText: Record<LoadType, string> = {
+  plates: 'Barbell / plates',
+  kettlebell: 'One kettlebell',
+  kettlebellPair: 'Two kettlebells',
+  addedLoad: 'Bodyweight + added kg',
+  bodyweight: 'Bodyweight only',
+}
+
+export const fatigueTagText: Record<FatigueTag, string> = {
+  pull: 'Pulling',
+  push: 'Pushing',
+  grip: 'Grip / fingers',
+  shoulder: 'Shoulders',
+  legs: 'Legs',
+  posteriorChain: 'Posterior chain',
+  core: 'Core',
+}
+
+export const techniqueText: Record<Technique, string> = {
+  tempo: '3 s lowering (slow eccentric)',
+  pause: '2 s pause at the bottom',
+  range: 'bigger range (e.g. deficit)',
 }
 
 export function formatKg(kg: number): string {
@@ -43,7 +114,7 @@ export function formatDate(date: string): string {
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
 }
 
-export function exerciseName(id: string): string {
+export function exerciseName(id: string, exercisesById: Record<string, Exercise>): string {
   return exercisesById[id]?.name ?? id
 }
 
@@ -51,6 +122,7 @@ export const strengthActionText: Record<StrengthAction, string> = {
   start: 'Starting load: find your groove',
   increaseLoad: 'All sets hit the top of the range → add weight',
   addReps: 'Same weight, aim for one more rep per set',
+  ladder: 'Top of the range reached, but the next weight is too big a jump → make it harder another way',
   deload: 'Deload: same weight, fewer sets, let your body catch up',
   stallReset: 'Stalled 3 sessions → drop ~10% and build back',
   lighter: 'Felt too hard → lighter this time',
@@ -62,6 +134,8 @@ export const strengthNoteText: Record<StrengthNote, string> = {
   lowFeeling: 'Your recent sessions felt rough. Recovery first.',
   plannedDeload: 'Planned deload: it has been a while since the last one.',
   zeroBaseline: 'No baseline yet: do a test session to calibrate loads.',
+  bigJump: 'Big jump to the next weight: start at the bottom of the rep range.',
+  heavierEquipment: 'You have outgrown your heaviest weight here: a heavier kettlebell (or a harder variation) is next.',
 }
 
 export const issueLabels: Record<IssueType, { title: string; icon: string; effect: string }> = {

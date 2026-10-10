@@ -3,21 +3,12 @@ import { ensureSeeded } from './data/seed'
 import { Celebrations } from './ui/components/Celebrations'
 import { useAppState } from './ui/hooks/useAppState'
 import { useToday } from './ui/hooks/useToday'
+import { Join } from './ui/screens/Join'
 import { Landing } from './ui/screens/Landing'
 import { Settings } from './ui/screens/Settings'
+import { ShareProfile } from './ui/screens/ShareProfile'
+import { parseRoute, type Route } from './ui/router'
 import { WindowView } from './ui/windows/WindowView'
-
-type Route =
-  | { name: 'landing' }
-  | { name: 'settings' }
-  | { name: 'window'; windowId: string; exerciseId?: string }
-
-function parseRoute(hash: string): Route {
-  const parts = hash.replace(/^#\/?/, '').split('/').filter(Boolean)
-  if (parts[0] === 'settings') return { name: 'settings' }
-  if (parts[0] === 'w' && parts[1]) return { name: 'window', windowId: parts[1], exerciseId: parts[2] }
-  return { name: 'landing' }
-}
 
 function useHashRoute(): [Route, (hash: string) => void] {
   const [hash, setHash] = useState(window.location.hash)
@@ -48,7 +39,9 @@ export default function App() {
   return (
     <>
       {route.name === 'landing' && <Landing state={state} today={today} navigate={navigate} />}
-      {route.name === 'settings' && <Settings today={today} hasDemo={state.hasDemo} navigate={navigate} />}
+      {route.name === 'settings' && <Settings today={today} state={state} navigate={navigate} />}
+      {route.name === 'share' && <ShareProfile navigate={navigate} />}
+      {route.name === 'join' && <Join encoded={route.payload} state={state} today={today} navigate={navigate} />}
       {route.name === 'window' && (
         <WindowView
           key={route.windowId}
