@@ -88,6 +88,32 @@
   gap: 8px;
 }
 
+/* Daily habit */
+.habit-tick { width: 100%; min-height: 56px; font-size: 1.05rem; }
+.habit-tick.done { background: var(--good); color: #fff; border-color: transparent; font-weight: 600; }
+.habit-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.habit-dot {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 4px 0;
+  min-width: 0;
+}
+.habit-mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--axis);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.habit-dot.done .habit-mark { background: var(--good); border-color: var(--good); color: #fff; }
+.habit-dot.pass .habit-mark { border-color: var(--warning); color: var(--text); }
+.habit-dot.missed .habit-mark { border-color: var(--critical); color: var(--critical); }
+.habit-dot.open .habit-mark { border-style: dashed; }
+
 /* Home tiles */
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .tile {

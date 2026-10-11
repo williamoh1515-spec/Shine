@@ -1,7 +1,9 @@
 import { achievements } from '../../config/achievements.config'
 import { gamificationConfig, progressionConfig } from '../../config/progression.config'
 import { balanceConfig, balancePairs } from '../../config/balance.config'
+import { habits as habitList } from '../../config/habits.config'
 import { plansById } from '../../config/plans.config'
+import { dailyStreak, lastSevenDays, type DailyStreak, type WeekDot } from '../../domain/habits'
 import type { ActivePlan } from '../../data/repositories/catalog'
 import { nextDay, type Plan, type PlanDay } from '../../domain/plans'
 import { evaluateBalance, type BalanceResult } from '../../domain/balance'
@@ -22,7 +24,7 @@ import { projectionFor } from '../../domain/goals'
 import { earnedMilestoneDates, milestoneStatuses, type MilestoneStatus } from '../../domain/milestones'
 import { fastProgressSuggestion, observedRate, personalPace, type RaiseSuggestion } from '../../domain/personalPace'
 import { priorRate, type PriorRate } from '../../domain/priors'
-import type { CheckIn, Goal, IsoDate, Profile, Session, TrainingWindow, UnlockedAchievement, WindowId } from '../../domain/models'
+import type { CheckIn, Goal, Habit, HabitCheck, IsoDate, Profile, Session, TrainingWindow, UnlockedAchievement, WindowId } from '../../domain/models'
 import { suggestNextGoal, type GoalSuggestion } from '../../domain/naturalPace'
 import { buildWeekProgram, type WeekProgram } from '../../domain/program'
 
@@ -45,6 +47,12 @@ export interface GoalView {
   pace?: { prior: PriorRate; observedPerWeek?: number; planningPerWeek?: number }
   /** Present when progress is clearly faster than expected: a more ambitious target. */
   raise?: RaiseSuggestion
+}
+
+export interface HabitView {
+  habit: Habit
+  streak: DailyStreak
+  week: WeekDot[]
 }
 
 export interface WindowView {
@@ -74,6 +82,8 @@ export interface AppState {
   profile: Profile
   /** Opposite-muscle balance across all logged training. */
   balance: BalanceResult[]
+  /** Daily habits (e.g. morning routine) with their streaks. */
+  habits: HabitView[]
   /** The plan being followed and its next day. */
   activePlan?: { plan: Plan; startedOn: IsoDate; next?: PlanDay }
   sessions: Session[]
@@ -89,6 +99,7 @@ export function deriveAppState(
   catalog: Catalog,
   profile: Profile,
   active: ActivePlan | null = null,
+  habitChecks: HabitCheck[] = [],
 ): AppState {
   const { windows, exercisesById } = catalog
   const goalViewsFor = (windowId: WindowId): GoalView[] => {
@@ -151,7 +162,13 @@ export function deriveAppState(
     plannedPerWeek[w.id] = own.length > 0 ? Math.max(...own) : DEFAULT_PLANNED_PER_WEEK
   }
 
-  const xp = computeXp(sessions, checkIns, plannedPerWeek, gamificationConfig)
+  const habitViews: HabitView[] = habitList.map((habit) => {
+    const dates = habitChecks.filter((c) => c.habitId === habit.id).map((c) => c.date)
+    const streak = dailyStreak(dates, today, gamificationConfig.habit.freePassesPerWeek)
+    return { habit, streak, week: lastSevenDays(streak, today) }
+  })
+
+  const xp = computeXp(sessions, checkIns, plannedPerWeek, gamificationConfig, habitChecks.map((c) => c.date))
   const windowViews: WindowView[] = visible.map((w) => {
     const windowXp = xp.byWindow[w.id] ?? 0
     const all = goalViewsFor(w.id)
@@ -183,6 +200,8 @@ export function deriveAppState(
     deloadDates: sessions.filter((s) => s.kind === 'deload').map((s) => s.date),
     checkInDates: checkIns.map((c) => c.date),
     streakWeeks: streak.weeks,
+    // Any habit's streak counts: the achievement is about the daily routine habit.
+    habitStreak: habitViews.flatMap((h) => h.streak.streakOnDate).sort((a, b) => (a.date < b.date ? -1 : 1)),
   })
 
   return {
@@ -198,6 +217,7 @@ export function deriveAppState(
     catalog,
     profile,
     balance: evaluateBalance(balancePairs, sessions, exercisesById, today, balanceConfig),
+    habits: habitViews,
     activePlan: activePlanView(active, sessions),
     sessions,
     goals,

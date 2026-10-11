@@ -3,6 +3,7 @@ import { achievements } from '../../config/achievements.config'
 import { planTimeConfig } from '../../config/plans.config'
 import { clearDemo, loadDemo } from '../../data/demo'
 import { estimateMinutes } from '../../domain/plans'
+import { HabitCard } from '../components/HabitCard'
 import { ProgressRing } from '../components/ProgressRing'
 import { WindowEditor } from '../components/WindowEditor'
 import type { AppState } from '../state/derive'
@@ -60,6 +61,10 @@ export function Landing({ state, today, navigate }: Props) {
           </div>
         </div>
       </section>
+
+      {state.habits.map((h) => (
+        <HabitCard key={h.habit.id} view={h} today={today} />
+      ))}
 
       {activePlan && next ? (
         <button className="card next-workout" onClick={() => navigate(`#/plans/${activePlan.plan.id}/${next.id}`)}>

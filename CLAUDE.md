@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Status
 v0.2 (Stage 1 of the "customizable app + profile links" plan). Windows/exercises are editable in the app (catalog in Dexie v2, merged over built-ins), equipment-aware progression (kettlebells, added load, pair loads) with a difficulty ladder (sets → tempo → pause → range → next load), timed holds/carries, easy-run model (single-run cap vs. longest of last 30 days), goal metrics `workingLoadKg` and `maxDurationSec`, and profile links (`#/join?p=…`) that set up another person's app. Demo data (`src/data/demo.ts`, flagged `demo: true`) can be loaded/cleared. Deployed via GitHub Pages (`.github/workflows/deploy.yml`).
 Goals adapt: expected pace per lift comes from research priors (`naturalProgress.liftKgPerYear`: Latella et al. 2022 for squat/deadlift/bench; overhead press extrapolated; level multipliers heuristic). Once ≥4 sessions over ≥3 weeks exist, the logged trend is blended in (`personalPace`). Faster than 1.5× expected → a one-tap "Raise goal" suggestion (never automatic; "Not now" until the next session). Goals can be changed any time ("Change goal" → new `manual` milestone plan; old plans kept; earned milestones still count). When a goal is reached, a next goal ~12 weeks ahead is suggested; accepting marks the old goal `completedOn`.
+Daily habits (`habits.config.ts`, currently the morning routine) are ticked on the home page; ticks live in the `habitChecks` table (Dexie v3, id `habitId:date`) and are included in backups. The daily streak (`domain/habits.ts`) forgives one missed day per Mon–Sun week (`habit.freePassesPerWeek`); a tick earns a small XP amount; streak achievements at 7 and 30 days.
 Home = tiles (windows, Plans, Achievements). Plans (`#/plans`) are followed with one tap (`meta.activePlan`); a plan day is logged as one session tagged `planId`/`planDayId`, which picks the next day.
 Stage 2 (not built yet): editing plans in the app, activity log for climbing/surfing/skiing/yoga, readiness rules after sports, cross-domain "one progression lever per week" rule, habit XP.
 Profiles for other people live in git-ignored `profiles/*.json` (same format as a profile link) and are turned into links via Settings → Share a profile → From a profile file.
@@ -62,6 +63,7 @@ src/
     naturalPace.ts   # goal suggestions one training block ahead (prior + personal pace)
     balance.ts       # opposite-muscle balance: measured strength ratios (test exercises) + weekly sets
     plans.ts         # ready-made plans: balance check, time estimate, next day, per-exercise prescription
+    habits.ts        # daily habit streak with a weekly free pass; 7-day strip
     profileLink.ts   # encode/decode/validate profile links (untrusted input: narrowed + bounded)
     gamification.ts  # XP, levels, streaks, PRs, achievement checks
     oneRepMax.ts     # e1RM estimators
