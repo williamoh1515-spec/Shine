@@ -203,6 +203,21 @@ export interface Goal {
   demo?: boolean
 }
 
+/** A daily habit to tick off, e.g. the morning routine. */
+export interface Habit {
+  id: string
+  name: string
+  icon: string
+  description?: string
+}
+
+/** One tick: this habit was done on this day. id = `${habitId}:${date}`, so ticking twice is a no-op. */
+export interface HabitCheck {
+  id: string
+  habitId: string
+  date: IsoDate
+}
+
 export type IssueType = 'pain' | 'tooHard' | 'tooEasy' | 'missedSessions' | 'plateau'
 
 export interface CheckIn {
@@ -220,6 +235,7 @@ export type AchievementRule =
   | { type: 'personalRecord'; count: number }
   | { type: 'milestonesHit'; count: number }
   | { type: 'weeklyStreak'; weeks: number }
+  | { type: 'habitStreak'; days: number }
   | { type: 'rirLoggedSessions'; count: number }
   | { type: 'testSessions'; count: number }
   | { type: 'deloadSessions'; count: number }

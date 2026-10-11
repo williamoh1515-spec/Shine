@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { CheckIn, Exercise, Goal, Session, TrainingWindow } from '../domain/models'
+import type { CheckIn, Exercise, Goal, HabitCheck, Session, TrainingWindow } from '../domain/models'
 
 export interface MetaEntry {
   key: string
@@ -13,6 +13,12 @@ export const V1_SCHEMA = {
   meta: 'key',
 } as const
 
+export const V2_SCHEMA = {
+  ...V1_SCHEMA,
+  catalogExercises: 'id',
+  catalogWindows: 'id',
+} as const
+
 // Schema changes always go through a new version() with a migration, plus a test.
 export class ShineDb extends Dexie {
   declare goals: Table<Goal, string>
@@ -21,16 +27,18 @@ export class ShineDb extends Dexie {
   declare meta: Table<MetaEntry, string>
   declare catalogExercises: Table<Exercise, string>
   declare catalogWindows: Table<TrainingWindow, string>
+  declare habitChecks: Table<HabitCheck, string>
 
   constructor(name = 'shine') {
     super(name)
     this.version(1).stores(V1_SCHEMA)
     // v2: user-editable catalog (custom exercises/windows and overrides of built-ins).
     // Purely additive: existing tables are untouched, so no data transform is needed.
-    this.version(2).stores({
-      ...V1_SCHEMA,
-      catalogExercises: 'id',
-      catalogWindows: 'id',
+    this.version(2).stores(V2_SCHEMA)
+    // v3: daily habit ticks (e.g. morning routine). Purely additive again.
+    this.version(3).stores({
+      ...V2_SCHEMA,
+      habitChecks: 'id, habitId, date',
     })
   }
 }

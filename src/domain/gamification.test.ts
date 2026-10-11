@@ -54,6 +54,37 @@ describe('computeXp', () => {
   })
 })
 
+describe('habit ticks', () => {
+  it('earn a small XP amount each, counted toward the global total only', () => {
+    const xp = computeXp([], [], planned, config, ['2026-10-05', '2026-10-06', '2026-10-07'])
+    expect(xp.total).toBe(3 * config.xp.habitTick)
+    expect(xp.byWindow.strength).toBeUndefined()
+  })
+
+  it('stay inside the daily XP cap together with training', () => {
+    const xp = computeXp([session('2026-10-05', sets('x', 60, [5], 2), { kind: 'test' })], [checkIn('2026-10-05', 'tooEasy')], planned, config, ['2026-10-05'])
+    expect(xp.total).toBeLessThanOrEqual(config.xp.dailyCap)
+  })
+})
+
+describe('habit achievements', () => {
+  const facts = (streaks: number[]): AchievementFacts => ({
+    sessionDates: [], prDates: [], milestoneHitDates: [], rirLoggedDates: [], testDates: [], deloadDates: [], checkInDates: [],
+    streakWeeks: [],
+    habitStreak: streaks.map((streak, i) => ({ date: `2026-10-${String(1 + i).padStart(2, '0')}`, streak })),
+  })
+  const seven = { id: 'h7', title: '', description: '', icon: '', rule: { type: 'habitStreak' as const, days: 7 } }
+
+  it('unlocks on the day the streak first reaches the target', () => {
+    expect(evaluateAchievements([seven], facts([1, 2, 3, 4, 5, 6, 7, 8]))[0]?.unlockedOn).toBe('2026-10-07')
+  })
+
+  it('stays locked below the target or without habit data', () => {
+    expect(evaluateAchievements([seven], facts([1, 2, 3]))).toEqual([])
+    expect(evaluateAchievements([seven], { ...facts([]), habitStreak: undefined })).toEqual([])
+  })
+})
+
 describe('rirFullyLogged', () => {
   it('needs RIR on every set with reps', () => {
     expect(rirFullyLogged(session('2026-10-05', sets('x', 60, [5, 5], 2)))).toBe(true)

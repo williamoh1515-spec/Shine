@@ -1,9 +1,9 @@
-import type { CheckIn, Exercise, Goal, Session, TrainingWindow } from '../../domain/models'
+import type { CheckIn, Exercise, Goal, HabitCheck, Session, TrainingWindow } from '../../domain/models'
 import { db, type MetaEntry, type ShineDb } from '../db'
 
 export const BACKUP_FORMAT = 'shine-backup'
-/** v2 adds the user-editable catalog. v1 backups still import (with an empty catalog). */
-export const BACKUP_VERSION = 2
+/** v2 adds the user-editable catalog, v3 the daily habit ticks. Older backups still import. */
+export const BACKUP_VERSION = 3
 
 export interface Backup {
   format: typeof BACKUP_FORMAT
@@ -15,6 +15,7 @@ export interface Backup {
   meta: MetaEntry[]
   catalogExercises: Exercise[]
   catalogWindows: TrainingWindow[]
+  habitChecks: HabitCheck[]
 }
 
 export async function exportAll(exportedAt: string, database: ShineDb = db): Promise<Backup> {
@@ -28,6 +29,7 @@ export async function exportAll(exportedAt: string, database: ShineDb = db): Pro
     meta: await database.meta.toArray(),
     catalogExercises: await database.catalogExercises.toArray(),
     catalogWindows: await database.catalogWindows.toArray(),
+    habitChecks: await database.habitChecks.toArray(),
   }
 }
 
@@ -45,7 +47,7 @@ export function parseBackup(json: unknown): Backup {
   if (typeof json.version !== 'number' || json.version > BACKUP_VERSION) {
     throw new Error('Backup was made by a newer version of the app')
   }
-  const { goals, sessions, checkIns, meta, catalogExercises, catalogWindows } = json
+  const { goals, sessions, checkIns, meta, catalogExercises, catalogWindows, habitChecks } = json
   if (!arrayOfRecordsWithId(goals) || !arrayOfRecordsWithId(sessions) || !arrayOfRecordsWithId(checkIns)) {
     throw new Error('Backup is missing goals, sessions or check-ins')
   }
@@ -62,6 +64,7 @@ export function parseBackup(json: unknown): Backup {
     meta: metaEntries,
     catalogExercises: arrayOfRecordsWithId(catalogExercises) ? (catalogExercises as Exercise[]) : [],
     catalogWindows: arrayOfRecordsWithId(catalogWindows) ? (catalogWindows as TrainingWindow[]) : [],
+    habitChecks: arrayOfRecordsWithId(habitChecks) ? (habitChecks as HabitCheck[]) : [],
   }
 }
 
@@ -74,6 +77,7 @@ export async function importAll(backup: Backup, database: ShineDb = db): Promise
     database.meta,
     database.catalogExercises,
     database.catalogWindows,
+    database.habitChecks,
   ]
   await database.transaction('rw', tables, async () => {
     await Promise.all(tables.map((t) => t.clear()))
@@ -83,5 +87,6 @@ export async function importAll(backup: Backup, database: ShineDb = db): Promise
     await database.meta.bulkPut(backup.meta)
     await database.catalogExercises.bulkPut(backup.catalogExercises)
     await database.catalogWindows.bulkPut(backup.catalogWindows)
+    await database.habitChecks.bulkPut(backup.habitChecks)
   })
 }

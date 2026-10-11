@@ -172,6 +172,9 @@ export const gamificationConfig = {
     testSession: 30,
     deloadSession: 20,
     checkIn: 10,
+    // A daily habit tick (e.g. morning routine): small, so the habit is rewarded but never
+    // outweighs training.
+    habitTick: 5,
     // Capped per day so doing more is never rewarded beyond the plan.
     dailyCap: 100,
   },
@@ -182,6 +185,11 @@ export const gamificationConfig = {
   },
   streak: {
     freezesPerMonth: 1,
+  },
+  habit: {
+    // One missed day per calendar week (Mon–Sun) is forgiven, so a single bad morning doesn't
+    // erase a long streak. A second miss in the same week resets it. Product choice, not science.
+    freePassesPerWeek: 1,
   },
 } as const
 

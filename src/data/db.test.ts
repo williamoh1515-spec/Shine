@@ -2,7 +2,8 @@ import 'fake-indexeddb/auto'
 import Dexie from 'dexie'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ProfileLinkV1 } from '../domain/profileLink'
-import { ShineDb, V1_SCHEMA } from './db'
+import { ShineDb, V1_SCHEMA, V2_SCHEMA } from './db'
+import { listHabitChecks, toggleHabitCheck } from './repositories/habits'
 import { buildDemoData, clearDemo, loadDemo } from './demo'
 import { exportAll, importAll, parseBackup } from './repositories/backup'
 import { addExerciseToWindow, getCatalog, getProfile, saveExercise } from './repositories/catalog'
@@ -38,19 +39,57 @@ afterEach(async () => {
 })
 
 describe('database', () => {
-  it('opens the v2 schema with all tables', () => {
-    expect(database.verno).toBe(2)
+  it('opens the v3 schema with all tables', () => {
+    expect(database.verno).toBe(3)
     expect(database.tables.map((t) => t.name).sort()).toEqual([
       'catalogExercises',
       'catalogWindows',
       'checkIns',
       'goals',
+      'habitChecks',
       'meta',
       'sessions',
     ])
   })
 
-  it('upgrades a v1 database to v2 without losing data', async () => {
+  it('upgrades a v2 database to v3 without losing data', async () => {
+    const name = `test-upgrade-v2-${++n}`
+    const v2 = new Dexie(name)
+    v2.version(1).stores(V1_SCHEMA)
+    v2.version(2).stores(V2_SCHEMA)
+    await v2.open()
+    await v2.table('catalogExercises').put({ id: 'custom-x', name: 'X', progressionModel: 'strength' })
+    await v2.table('sessions').add({ id: 's1', date: '2026-10-01', windowId: 'strength', kind: 'training', setLogs: [] })
+    v2.close()
+
+    const upgraded = new ShineDb(name)
+    await upgraded.open()
+    expect(upgraded.verno).toBe(3)
+    expect(await upgraded.catalogExercises.get('custom-x')).toBeDefined()
+    expect(await upgraded.sessions.get('s1')).toBeDefined()
+    expect(await upgraded.habitChecks.count()).toBe(0)
+    await upgraded.delete()
+  })
+
+  it('toggles a habit tick for a day and never duplicates it', async () => {
+    expect(await toggleHabitCheck('morning', '2026-10-11', database)).toBe(true)
+    expect(await listHabitChecks(database)).toEqual([{ id: 'morning:2026-10-11', habitId: 'morning', date: '2026-10-11' }])
+    expect(await toggleHabitCheck('morning', '2026-10-11', database)).toBe(false)
+    expect(await listHabitChecks(database)).toEqual([])
+  })
+
+  it('backs up and restores habit ticks, and still imports older backups', async () => {
+    await toggleHabitCheck('morning', '2026-10-10', database)
+    await toggleHabitCheck('morning', '2026-10-11', database)
+    const backup = parseBackup(JSON.parse(JSON.stringify(await exportAll('now', database))))
+    const other = new ShineDb(`test-${++n}`)
+    await importAll(backup, other)
+    expect((await listHabitChecks(other)).map((c) => c.date).sort()).toEqual(['2026-10-10', '2026-10-11'])
+    await other.delete()
+    expect(parseBackup({ format: 'shine-backup', version: 2, goals: [], sessions: [], checkIns: [], meta: [] }).habitChecks).toEqual([])
+  })
+
+  it('upgrades a v1 database through to the current version without losing data', async () => {
     const name = `test-upgrade-${++n}`
     const v1 = new Dexie(name)
     v1.version(1).stores(V1_SCHEMA)
@@ -64,10 +103,11 @@ describe('database', () => {
 
     const upgraded = new ShineDb(name)
     await upgraded.open()
-    expect(upgraded.verno).toBe(2)
+    expect(upgraded.verno).toBe(3)
     expect(await upgraded.sessions.get('s1')).toMatchObject({ setLogs: [{ reps: 10 }] })
     expect(await upgraded.meta.get('seeded')).toBeDefined()
     expect(await upgraded.catalogExercises.count()).toBe(0)
+    expect(await upgraded.habitChecks.count()).toBe(0)
     await upgraded.delete()
   })
 

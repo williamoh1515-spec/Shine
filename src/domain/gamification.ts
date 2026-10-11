@@ -19,6 +19,9 @@ export function rirFullyLogged(session: Session): boolean {
   return withReps.length > 0 && withReps.every((l) => l.rir !== undefined)
 }
 
+/** XP from habits counts toward the global level but belongs to no training window. */
+export const HABIT_XP_KEY = '_habits'
+
 export interface XpSummary {
   total: number
   byWindow: Record<WindowId, number>
@@ -33,6 +36,8 @@ export function computeXp(
   checkIns: CheckIn[],
   plannedPerWeek: Record<WindowId, number>,
   config: GamificationConfig,
+  /** Dates of daily-habit ticks; each earns a small amount, within the daily cap. */
+  habitDates: IsoDate[] = [],
 ): XpSummary {
   const { xp } = config
   const events: { date: IsoDate; windowId: WindowId; amount: number }[] = []
@@ -50,6 +55,7 @@ export function computeXp(
     events.push({ date: s.date, windowId: s.windowId, amount })
   }
   for (const c of checkIns) events.push({ date: c.date, windowId: c.windowId, amount: xp.checkIn })
+  for (const date of habitDates) events.push({ date, windowId: HABIT_XP_KEY, amount: xp.habitTick })
 
   const usedPerDay = new Map<IsoDate, number>()
   const byWindow: Record<WindowId, number> = {}
@@ -189,6 +195,8 @@ export interface AchievementFacts {
   deloadDates: IsoDate[]
   checkInDates: IsoDate[]
   streakWeeks: StreakWeek[]
+  /** Daily-habit streak length after each ticked day (oldest first). */
+  habitStreak?: { date: IsoDate; streak: number }[]
 }
 
 function nthDate(dates: IsoDate[], n: number): IsoDate | undefined {
@@ -215,6 +223,8 @@ function unlockDate(rule: AchievementRule, f: AchievementFacts): IsoDate | undef
       const week = f.streakWeeks.find((w) => w.streak >= rule.weeks)
       return week === undefined ? undefined : addDays(week.weekOf, 6)
     }
+    case 'habitStreak':
+      return (f.habitStreak ?? []).find((p) => p.streak >= rule.days)?.date
   }
 }
 

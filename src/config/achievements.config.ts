@@ -10,6 +10,8 @@ export const achievements: Achievement[] = [
   { id: 'first-milestone', title: 'Checkpoint', description: 'Reach your first milestone.', icon: '🚩', rule: { type: 'milestonesHit', count: 1 } },
   { id: 'three-milestones', title: 'Climber', description: 'Reach 3 milestones.', icon: '⛰️', rule: { type: 'milestonesHit', count: 3 } },
   { id: 'streak-4', title: 'Four-Week Habit', description: 'Hit your weekly plan 4 weeks in a row.', icon: '🗓️', rule: { type: 'weeklyStreak', weeks: 4 } },
+  { id: 'habit-7', title: 'Morning Habit', description: 'Do your daily routine 7 days in a row.', icon: '☀️', rule: { type: 'habitStreak', days: 7 } },
+  { id: 'habit-30', title: 'Unshakeable', description: 'Do your daily routine 30 days in a row.', icon: '🌅', rule: { type: 'habitStreak', days: 30 } },
   { id: 'rir-logger', title: 'Honest Effort', description: 'Log RIR on every set in 5 sessions.', icon: '🎯', rule: { type: 'rirLoggedSessions', count: 5 } },
   { id: 'first-test', title: 'Measured', description: 'Complete a test session.', icon: '📏', rule: { type: 'testSessions', count: 1 } },
   { id: 'first-deload', title: 'Smart Recovery', description: 'Complete a deload session.', icon: '🛌', rule: { type: 'deloadSessions', count: 1 } },
